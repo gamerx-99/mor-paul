@@ -236,21 +236,54 @@ function DashboardLayoutContent({
       </div>
 
       <SidebarInset>
-        {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col gap-1">
-                  <span className="tracking-tight text-foreground">
-                    {activeMenuItem?.label ?? "Menu"}
-                  </span>
-                </div>
+        <div className="flex md:hidden border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="flex items-center gap-2">
+            <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
+            <div className="flex items-center gap-3">
+              <div className="flex flex-col gap-1">
+                <span className="tracking-tight text-foreground">
+                  {activeMenuItem?.label ?? "Menu"}
+                </span>
               </div>
             </div>
           </div>
-        )}
-        <main className="flex-1 p-4">{children}</main>
+        </div>
+        <main className="flex-1 p-4 pb-20 md:pb-4">{children}</main>
+
+        {/* Mobile Bottom Navigation - always rendered immediately on mobile without requiring interaction */}
+        <nav
+          aria-label="แถบนำทางหลักสำหรับมือถือ"
+          data-slot="mobile-bottom-nav"
+          className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-border bg-background/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-[backdrop-filter]:backdrop-blur md:hidden"
+        >
+          {visibleMenuItems.map((item) => {
+            const isActive = location === item.path || (item.path !== "/" && location.startsWith(item.path + "/"));
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.path}
+                type="button"
+                onClick={() => {
+                  if (item.disabled) {
+                    toast("โมดูลนี้จะเปิดใช้งานในระยะถัดไป");
+                  } else {
+                    setLocation(item.path);
+                  }
+                }}
+                data-active={isActive}
+                aria-current={isActive ? "page" : undefined}
+                className={`flex flex-1 flex-col items-center justify-center gap-1 py-1 text-[11px] font-medium transition-colors ${
+                  isActive
+                    ? "text-primary font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                } ${item.disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+              >
+                <Icon className={`h-5 w-5 shrink-0 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                <span className="truncate max-w-[72px] leading-tight text-center">{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
       </SidebarInset>
     </>
   );

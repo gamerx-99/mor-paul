@@ -47,7 +47,7 @@
 - [x] ตรวจ privacy ของ report payload/CSV, ทดสอบ TypeScript/Vitest/build และยืนยันด้วยหน้าจอโดยไม่สร้างข้อมูลจำลอง
 - [x] เชื่อม Clinical Transit Board หน้าแรกกับข้อมูลคิวจริงตามสิทธิ์ โดยรักษา zero-PHI สำหรับ SYSTEM_ADMIN
 - [x] เพิ่ม operational status, loading, empty, error และ action entry points ใน Transit Board โดยไม่สร้างข้อมูลจำลอง
-- [ ] เพิ่มการทดสอบ role/contract ของ home dashboard และตรวจ TypeScript, Vitest, production build กับหน้าจอจริง
+- [x] เพิ่มการทดสอบ role/contract ของ home dashboard และตรวจ TypeScript, Vitest, production build กับหน้าจอจริง
 - [x] แก้ logout unit test ให้ mock persistence และไม่หมดเวลาจากการเรียกฐานข้อมูลจริงระหว่าง suite
 - [x] เพิ่ม UI/integration test สำหรับ Home dashboard ที่ยืนยันว่า SYSTEM_ADMIN เห็น zero-PHI overview และไม่ trigger frontDesk.listQueue
 - [x] เพิ่ม UI/integration test สำหรับ ASSISTANT/DOCTOR บน Home dashboard ให้ครอบคลุม loading, empty, error และ action state ของ Clinical Transit Board
@@ -59,7 +59,7 @@
 - [ ] ตรวจ Clinical Transit Board แบบ authenticated ตามบทบาทจากบัญชีทดสอบจริง และเก็บหลักฐาน zero-PHI/clinical view
 - [x] รีเซ็ตรหัสผ่านบัญชีทดสอบ DOCTOR และตรวจ login จริงก่อนส่งมอบข้อมูลรับรองแก่ผู้ใช้
 - [ ] รีเซ็ตรหัสผ่านบัญชีทดสอบ ASSISTANT และตรวจ login จริงก่อนส่งมอบข้อมูลรับรองแก่ผู้ใช้
-- [ ] แก้ Reports v1 daily revenue aggregate query ให้ทำงานกับ MySQL/TiDB และไม่แสดง SQL หรือ parameter ภายในแก่ผู้ใช้
+- [x] แก้ Reports v1 daily revenue aggregate query ให้ทำงานกับ MySQL/TiDB และไม่แสดง SQL หรือ parameter ภายในแก่ผู้ใช้
 - [x] เพิ่มข้อความอธิบายเกณฑ์รหัสผ่านและ password-strength indicator ในฟอร์มสร้างบัญชีบุคลากร
 - [x] เพิ่มการทดสอบรายงาน empty-state/error mapping และ password-strength UI ก่อนส่งคืนให้ทดสอบ SYSTEM_ADMIN ซ้ำ
 - [ ] ทดสอบ Reports หน้า SYSTEM_ADMIN บน environment จริงหลังแก้ daily revenue query และบันทึกหลักฐานว่าแสดง empty/data state ได้โดยไม่เผย SQL/params ภายใน
@@ -89,5 +89,6 @@
 - [x] ใช้มาตรฐาน mask เลขบัตรประชาชน 2 หลักแรกและ 3 หลักท้าย (`12••••••••345`) ในทุก UI และ API response ที่อนุญาตให้แสดงค่า
 - [x] เพิ่ม Vitest ครอบคลุม checksum/validation, write-once enforcement, RBAC, masking และ audit trail ของเลขบัตรประชาชน
 - [x] สร้างชุด Shared Project Context ใน docs/project-context จากสถานะจริงของโครงการ เพื่อให้แชทใหม่เริ่มงานต่อได้โดยไม่ต้องอ่านบทสนทนาเดิมทั้งหมด
-- [ ] ตรวจสอบความปลอดภัยของ repository ทำความสะอาดเฉพาะไฟล์ที่ไม่ควร commit และ commit/push โครงการ Clinic HIS ไปยัง remote GitHub เดิม
+- [x] ตรวจสอบความปลอดภัยของ repository ทำความสะอาดเฉพาะไฟล์ที่ไม่ควร commit และ commit/push โครงการ Clinic HIS ไปยัง remote GitHub เดิม
 - [x] จัดทำ Dependency Security Audit แบบ read-only จาก pnpm audit, package manifest และ lockfile โดยวิเคราะห์ผลกระทบจริงและทางเลือก remediation โดยไม่แก้ dependency
+

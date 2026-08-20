@@ -45,4 +45,69 @@ describe("DashboardLayout mobile initial navigation", () => {
     expect(markup).toContain(expectedLabel);
     expect(markup).toContain("workspace");
   });
+
+  it("renders Mobile Bottom Navigation immediately on first render without user interaction for SYSTEM_ADMIN", () => {
+    authState.user = { id: 1, username: "admin", displayName: "System Admin", role: "SYSTEM_ADMIN" };
+    window.history.replaceState({}, "", "/medications");
+
+    const markup = renderMobileLayout();
+
+    expect(markup).toContain('data-slot="mobile-bottom-nav"');
+    expect(markup).toContain("คลังยาและราคา");
+    expect(markup).toContain("รายงานสรุป");
+    expect(markup).toContain("บัญชีบุคลากร");
+    // Should not contain assistant/doctor only pages
+    expect(markup).not.toContain("ห้องตรวจ");
+    expect(markup).not.toContain("ลงทะเบียน");
+  });
+
+  it("renders Mobile Bottom Navigation immediately on first render without user interaction for DOCTOR", () => {
+    authState.user = { id: 2, username: "doctor", displayName: "Doctor A", role: "DOCTOR" };
+    window.history.replaceState({}, "", "/doctor-console");
+
+    const markup = renderMobileLayout();
+
+    expect(markup).toContain('data-slot="mobile-bottom-nav"');
+    expect(markup).toContain("ภาพรวม");
+    expect(markup).toContain("คัดกรองและคิว");
+    expect(markup).toContain("ห้องตรวจ");
+    expect(markup).toContain("รายงานสรุป");
+    // Should not contain admin-only or cashier
+    expect(markup).not.toContain("คลังยาและราคา");
+    expect(markup).not.toContain("จ่ายยาและการเงิน");
+  });
+
+  it("renders Mobile Bottom Navigation immediately on first render without user interaction for ASSISTANT", () => {
+    authState.user = { id: 3, username: "assistant", displayName: "Assistant B", role: "ASSISTANT" };
+    window.history.replaceState({}, "", "/front-desk");
+
+    const markup = renderMobileLayout();
+
+    expect(markup).toContain('data-slot="mobile-bottom-nav"');
+    expect(markup).toContain("ภาพรวม");
+    expect(markup).toContain("ลงทะเบียน");
+    expect(markup).toContain("คัดกรองและคิว");
+    expect(markup).toContain("จ่ายยาและการเงิน");
+    expect(markup).toContain("รายงานสรุป");
+    // Should not contain doctor-only or admin-only
+    expect(markup).not.toContain("ห้องตรวจ");
+    expect(markup).not.toContain("บัญชีบุคลากร");
+  });
+
+  it.each([
+    ["/", "ภาพรวม"],
+    ["/front-desk", "ลงทะเบียน"],
+    ["/queue", "คัดกรองและคิว"],
+    ["/cashier", "จ่ายยาและการเงิน"],
+    ["/reports", "รายงานสรุป"],
+  ] as const)("marks active state correctly on direct entry / hard refresh for route %s", (path, expectedActiveLabel) => {
+    authState.user = { id: 3, username: "assistant", displayName: "Assistant B", role: "ASSISTANT" };
+    window.history.replaceState({}, "", path);
+
+    const markup = renderMobileLayout();
+
+    expect(markup).toContain('data-slot="mobile-bottom-nav"');
+    expect(markup).toContain('aria-current="page"');
+    expect(markup).toContain(expectedActiveLabel);
+  });
 });

@@ -14,6 +14,10 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    env: {
+      INITIAL_SETUP_KEY: "test-setup-key-with-sufficient-length",
+      NATIONAL_ID_ENCRYPTION_KEY: "test-encryption-key-with-at-least-32-characters-length",
+    },
     include: ["server/**/*.test.{ts,tsx}", "server/**/*.spec.{ts,tsx}", "client/**/*.test.{ts,tsx}", "client/**/*.spec.{ts,tsx}"],
   },
 });
