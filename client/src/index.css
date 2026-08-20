@@ -1,0 +1,36 @@
+/* Clinical Transit Board — warm surfaces and precise typography support rapid clinical scanning. */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Noto Sans Thai", "IBM Plex Sans", system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+}
+
+:root { --background: oklch(0.972 0.008 104); --foreground: oklch(0.275 0.035 174); --card: oklch(0.992 0.004 102); --card-foreground: oklch(0.275 0.035 174); --primary: oklch(0.43 0.08 184); --primary-foreground: oklch(0.98 0.005 102); --border: oklch(0.89 0.014 161); --ring: oklch(0.43 0.08 184); }
+
+@layer base {
+  * { @apply border-border; }
+  html { background: #F7F5EF; }
+  body { @apply bg-background text-foreground antialiased; font-family: "Noto Sans Thai", "IBM Plex Sans", system-ui, sans-serif; }
+  button, input { font: inherit; }
+  button:not(:disabled), [role="button"]:not([aria-disabled="true"]), input:not(:disabled) { @apply cursor-pointer; }
+  ::selection { background: #B8DBD7; color: #17312F; }
+}
+
+@layer components {
+  .route-kicker { display: inline-flex; align-items: center; gap: 0.55rem; border: 1px solid #C6DDD4; border-radius: 999px; background: rgba(255,255,255,.66); padding: 0.38rem .65rem; color: #426B61; font-family: "IBM Plex Sans", sans-serif; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  .route-dot { height: .48rem; width: .48rem; border-radius: 999px; background: #0B6B67; box-shadow: 0 0 0 4px rgba(11,107,103,.12); }
+}
+
+@media (prefers-reduced-motion: no-preference) { button { transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1); } }
+@media print { aside, header, .route-kicker, button { display: none !important; } .lg\:ml-\[274px\] { margin-left: 0 !important; } main { background: white !important; } }

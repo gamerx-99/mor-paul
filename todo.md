@@ -1,0 +1,93 @@
+# รายการดำเนินงาน Clinic HIS
+
+- [x] ยืนยันสแตกขั้นต่ำ: React + Node/Express API + managed MySQL-compatible database โดยตัด Firebase, Cloud Run และบริการแยกส่วนออกจาก MVP
+- [x] ออกแบบ username/password authentication: scrypt password hash, secure session cookie, session revocation และบัญชีเริ่มต้นที่มี setup key
+- [x] เตรียม full-stack capability และ database environment สำหรับพัฒนา โดยยังไม่เชื่อมข้อมูลผู้ป่วยจริง
+- [x] ลบข้อมูลสังเคราะห์และข้อความตัวอย่างของคิว ผู้ป่วย เวชระเบียน ยา การเงิน และสถิติออกจากหน้าจอ
+- [x] แทนที่ workbench ด้วย empty states และปุ่มเริ่มงานที่ไม่สร้างข้อมูลโดยอัตโนมัติ
+- [x] ยืนยันว่าไม่มี seed script, fixture หรือ mock record ถูกนำไปใช้กับฐานข้อมูลทดสอบของผู้ใช้
+- [x] เปรียบเทียบ Firebase + Cloud Functions, Supabase และ full-stack managed backend ตามเกณฑ์ PHI, RBAC, audit, การดูแล และต้นทุนเริ่มต้น
+- [x] เลือก production stack และบันทึกเหตุผลกับ trade-off ใน ADR
+- [x] กำหนด environment separation, secret handling และ credential ownership ก่อนเชื่อมระบบจริง
+- [x] สร้าง Firebase project หรือ platform ที่เลือก และเปิดใช้ authentication provider ที่อนุมัติ — **ยกเลิก** ตามข้อกำหนดสแตกขั้นต่ำและ local username/password
+- [x] สร้าง UI/Procedure สำหรับผู้ดูแลในการเพิ่ม ปิดใช้ และกำหนดบทบาทบัญชีบุคลากร โดยบังคับสิทธิ์จาก server และทดสอบ negative access ทั้งสามบทบาท
+- [x] เชื่อม queue UI กับข้อมูลว่างจาก backend ก่อน แล้วจึงรับเฉพาะรายการที่ผู้ใช้บันทึกเองผ่าน workflow ที่อนุมัติ
+- [x] กำหนด contract สถานะ visit, triage และคิว โดยยึด role matrix ที่ห้าม System Admin เข้าถึง PHI
+- [x] สร้าง schema และ tRPC procedure สำหรับลงทะเบียนผู้รับบริการ, visit และ triage โดยไม่มี default record หรือ seed data
+- [x] สร้างหน้าจอ Front Desk ที่ให้ผู้ใช้บันทึกและค้นหารายการของตนเอง พร้อม empty, loading และ error state
+- [x] ตรวจ RBAC ฝั่ง server สำหรับการลงทะเบียนและการดูคิว โดยทดสอบสิทธิ์ที่ปฏิเสธสำหรับบทบาทไม่เกี่ยวข้อง
+- [x] สร้าง workflow EMR, คำสั่งยา, คลังยา และการเงินบน privileged backend ที่มี idempotency และ audit
+- [x] พัฒนา Doctor Console v1 สำหรับรับคิว บันทึก SOAP วินิจฉัย และลงนามปิดการตรวจ โดยจำกัดการเขียนข้อมูลคลินิกให้แพทย์
+- [x] พัฒนา Pharmacy Foundation และ Cashier v1 สำหรับคำสั่งยา การจ่ายยา สต็อก ใบแจ้งหนี้ และการรับชำระแบบ transaction โดยไม่ seed ยาหรือราคา
+- [ ] ตั้งค่า private document storage, file validation, backup, monitoring และ incident runbook
+- [ ] ทำ security test, UAT และทดสอบ recovery ก่อน pilot
+- [x] ตรวจโครงสร้างและความเข้ากันได้ของ UI ที่อัปโหลดกับ Front Desk, Queue, RBAC และข้อมูลจริงของ Clinic HIS
+- [x] จัดทำ roadmap Doctor Console สำหรับ EMR, diagnosis, orders และการส่งต่อไปจ่ายยา โดยกำหนด schema, RBAC และ audit trail
+- [x] จัดทำ roadmap Cashier สำหรับ prescription read-only, dispense, stock, invoice, payment และเอกสารพิมพ์ โดยไม่ใช้ข้อมูลสาธิต
+- [x] เพิ่ม UI สำหรับตั้งราคา active และรับ inventory lot เข้าสต็อกด้วยข้อมูลจริง เพื่อให้ workflow จ่ายยาไม่ต้องพึ่ง SQL หรือ seed
+- [x] เพิ่ม automated tests สำหรับ success path, idempotency และข้อผิดพลาดของ dispense และ payment ก่อน checkpoint Cashier
+- [x] เพิ่มฟอร์มรับ inventory lot ใน Medication Catalog และเชื่อมกับ procedure รับสต็อกจริง พร้อม loading/error/success states
+- [x] เพิ่ม Vitest สำหรับ payment procedure ให้ครอบคลุม success path, idempotent replay และ error mapping โดยไม่แตะฐานข้อมูลจริง
+- [x] เพิ่ม workflow เปลี่ยนรหัสผ่านบุคลากร พร้อมตรวจรหัสผ่านเดิม, hash ใหม่, audit trail และเพิกถอน session อื่นอย่างปลอดภัย
+- [x] เพิ่ม session-expiry UX ที่ล้าง client cache ของ PHI แจ้งผู้ใช้เป็นภาษาไทย และกลับหน้า sign-in โดยไม่เกิด loop
+- [x] เพิ่ม server-side login rate limiting ที่ไม่เปิดเผยการมีอยู่ของบัญชีและไม่พึ่งบริการภายนอก
+- [x] ตรวจ audit coverage ของ mutation ทุกโมดูล และเพิ่ม RBAC/error-mapping tests สำหรับ hardening
+- [x] เพิ่มการนำผู้ใช้กลับ AccessGate อัตโนมัติเมื่อ session หมดอายุ และทดสอบว่าไม่เกิด redirect loop บน protected route
+- [x] เพิ่ม Vitest สำหรับ auth.changePassword กรณี unauthenticated และสรุป coverage ของ hardening ให้ครบ RBAC/error mapping
+- [x] เพิ่มการทดสอบ session-expiry redirect บน protected route เพื่อยืนยันว่าแสดง AccessGate อัตโนมัติและไม่เกิด redirect loop
+- [x] บันทึกผล audit coverage review ของ mutation ทุกโมดูล พร้อมรายการ RBAC/error mapping coverage ที่ตรวจสอบได้
+- [x] เพิ่ม UI integration test ที่ render SessionExpiryBoundary จาก protected route แล้วตรวจการแสดง AccessGate หลัง session-expiry
+- [x] เพิ่ม UI integration test สำหรับ repeated session-expiry และ re-authentication เพื่อยืนยันว่าไม่เกิด redirect loop และกลับ workspace ได้
+- [x] จัดทำ environment/credential ownership, backup/recovery และ incident runbook พร้อมกำหนดให้การรับไฟล์ PHI ปิดใช้งานโดยปริยายในรุ่นปัจจุบัน
+- [ ] ออกแบบและ implement private document storage พร้อม server-side authorization และ file validation หลังมี workflow เอกสารที่อนุมัติ
+- [ ] ตั้งค่า monitoring/backup automation ที่ใช้งานจริง หรือยืนยันเป็น manual control อย่างเป็นทางการพร้อมหลักฐานการทดสอบ recovery
+- [x] เพิ่ม server-side aggregate report queries แบบกำหนดช่วงวัน โดยไม่คืน PHI หรือข้อมูลระดับผู้รับบริการ
+- [x] เพิ่ม tRPC Reports v1 ที่บังคับ role matrix แยก ASSISTANT, DOCTOR และ SYSTEM_ADMIN พร้อม negative RBAC tests
+- [x] เพิ่มหน้า Reports พร้อม loading/empty/error/access states, navigation ตาม role และ CSV export จากข้อมูลที่ผ่าน authorization แล้ว
+- [x] ตรวจ privacy ของ report payload/CSV, ทดสอบ TypeScript/Vitest/build และยืนยันด้วยหน้าจอโดยไม่สร้างข้อมูลจำลอง
+- [x] เชื่อม Clinical Transit Board หน้าแรกกับข้อมูลคิวจริงตามสิทธิ์ โดยรักษา zero-PHI สำหรับ SYSTEM_ADMIN
+- [x] เพิ่ม operational status, loading, empty, error และ action entry points ใน Transit Board โดยไม่สร้างข้อมูลจำลอง
+- [ ] เพิ่มการทดสอบ role/contract ของ home dashboard และตรวจ TypeScript, Vitest, production build กับหน้าจอจริง
+- [x] แก้ logout unit test ให้ mock persistence และไม่หมดเวลาจากการเรียกฐานข้อมูลจริงระหว่าง suite
+- [x] เพิ่ม UI/integration test สำหรับ Home dashboard ที่ยืนยันว่า SYSTEM_ADMIN เห็น zero-PHI overview และไม่ trigger frontDesk.listQueue
+- [x] เพิ่ม UI/integration test สำหรับ ASSISTANT/DOCTOR บน Home dashboard ให้ครอบคลุม loading, empty, error และ action state ของ Clinical Transit Board
+- [ ] เก็บหลักฐานหน้าจอ authenticated Home dashboard ของทั้ง clinical role และ SYSTEM_ADMIN หลังเชื่อมข้อมูลจริง โดยไม่ใช้ข้อมูลจำลอง
+- [x] เพิ่ม UI/integration test ของ Home dashboard สำหรับ DOCTOR ที่กดเรียกคิวถัดไปแล้วตรวจ pending/success หรือ error state
+- [x] เพิ่ม UI/integration test ของ Home dashboard สำหรับ ASSISTANT/DOCTOR ที่ยืนยัน action entry points ทำงานตาม role ไม่ใช่เพียง render ปุ่ม
+- [x] สร้างบัญชีทดสอบจริงสำหรับ SYSTEM_ADMIN, DOCTOR และ ASSISTANT โดยไม่สร้างผู้ป่วย ยา หรือธุรกรรมจำลอง
+- [x] ส่งมอบข้อมูลเข้าสู่ระบบทดสอบแก่ผู้ใช้ผ่านข้อความที่ชัดเจนและแนะนำให้เปลี่ยนรหัสผ่านหลังทดสอบ
+- [ ] ตรวจ Clinical Transit Board แบบ authenticated ตามบทบาทจากบัญชีทดสอบจริง และเก็บหลักฐาน zero-PHI/clinical view
+- [x] รีเซ็ตรหัสผ่านบัญชีทดสอบ DOCTOR และตรวจ login จริงก่อนส่งมอบข้อมูลรับรองแก่ผู้ใช้
+- [ ] รีเซ็ตรหัสผ่านบัญชีทดสอบ ASSISTANT และตรวจ login จริงก่อนส่งมอบข้อมูลรับรองแก่ผู้ใช้
+- [ ] แก้ Reports v1 daily revenue aggregate query ให้ทำงานกับ MySQL/TiDB และไม่แสดง SQL หรือ parameter ภายในแก่ผู้ใช้
+- [x] เพิ่มข้อความอธิบายเกณฑ์รหัสผ่านและ password-strength indicator ในฟอร์มสร้างบัญชีบุคลากร
+- [x] เพิ่มการทดสอบรายงาน empty-state/error mapping และ password-strength UI ก่อนส่งคืนให้ทดสอบ SYSTEM_ADMIN ซ้ำ
+- [ ] ทดสอบ Reports หน้า SYSTEM_ADMIN บน environment จริงหลังแก้ daily revenue query และบันทึกหลักฐานว่าแสดง empty/data state ได้โดยไม่เผย SQL/params ภายใน
+- [x] เพิ่ม UI integration test สำหรับ Reports page empty state เพื่อยืนยันข้อความว่างปลอดภัยและไม่เผย SQL/internal parameters
+- [x] เพิ่ม UI integration test ที่ยืนยัน helper text และ password-strength indicator เปลี่ยนตาม input จริงและสอดคล้องกับ password policy ของ server
+- [x] จัดทำ Project Status Report ภาษาไทยแบบ Markdown ที่สรุป architecture, UI/UX, security, RBAC, งานที่เสร็จ งานคงค้าง และกฎบังคับของ Clinic HIS
+- [x] เพิ่ม CSV import สำหรับคลังยาและราคาที่ parse/validate/preview ก่อน commit โดยไม่สร้างข้อมูลจำลอง
+- [x] เพิ่ม server-side atomic bulk import สำหรับ medication catalog และ active price พร้อม RBAC, audit trail และ error mapping
+- [x] เพิ่ม template CSV, ข้อความอธิบายคอลัมน์ และ test กรณี valid/invalid/duplicate import โดยไม่รับข้อมูลผู้ป่วย
+- [x] ตรวจ root cause ของ Mobile Bottom Navigation initial display เฉพาะ CSS/state/conditional rendering/stacking/animation/breakpoint โดยไม่แก้ routing, navigation logic หรือ function ของปุ่ม
+- [x] แก้ initial visual state ของ Mobile Bottom Navigation ให้แสดงทันทีหลัง hard refresh/direct entry โดยไม่กระทบ desktop layout
+- [x] เพิ่ม regression tests ระดับ DashboardLayout และตรวจ direct entry/route change/ทุกปุ่ม navigation ที่ SYSTEM_ADMIN ใช้งานได้หลังแก้ visual state
+- [ ] ทำ UAT hard refresh และ mobile viewport บนอุปกรณ์จริงของ DOCTOR และ ASSISTANT เพื่อยืนยัน navigation ของแต่ละบทบาท
+- [x] ออกแบบ schema และ domain contract สำหรับรายการค่าบริการที่แยกจากยา โดยรองรับชื่อบริการ จำนวน หน่วย ราคาต่อหน่วย และรายละเอียดบนใบเรียกเก็บ
+- [x] เพิ่ม workflow ให้ ASSISTANT บันทึกค่าบริการของ visit ที่แพทย์ลงนามแล้ว พร้อม RBAC และ audit trail
+- [x] ตรวจรับ invoice ให้รวมค่ายาและค่าบริการเป็น line item คนละประเภท พร้อมยอดรวมที่ตรวจสอบได้และไม่แสดง PHI ต่อ SYSTEM_ADMIN
+- [x] ตรวจรับเงื่อนไขที่ encounter ต้องได้รับการออกบิลและชำระครบก่อนจึงปิดงานได้ แม้ไม่มีรายการยา
+- [x] ตรวจรับ Cashier UI ที่เพิ่มค่าบริการก่อนออกบิล และแสดงสถานะขั้นตอนปิดงานอย่างชัดเจน
+- [x] เพิ่ม Vitest ครอบคลุม RBAC, invoice service lines, no-medication billing และการปฏิเสธปิดงานก่อนรับชำระ
+- [x] เพิ่ม test workflow ระดับ server: encounter ไม่มีรายการยา → ออกใบเรียกเก็บ → ยังไม่ CLOSED → รับชำระสำเร็จ → CLOSED
+- [x] เพิ่ม UI integration test สำหรับ Cashier ที่ครอบคลุมค่าบริการ ออกบิล รับชำระ และข้อความสถานะปิดงาน
+- [x] กำหนด data model ของเลขบัตรประชาชนแบบ write-once โดยเก็บเฉพาะค่าที่จำเป็น, ตรวจรูปแบบ, ปกปิดค่าที่ส่งกลับ และหลีกเลี่ยงการแสดงเลขเต็ม
+- [x] เพิ่ม schema migration และ server-side validation สำหรับเลขบัตรประชาชน พร้อม unique constraint และ audit event โดยไม่เปิดสิทธิ์ให้ SYSTEM_ADMIN อ่าน PHI
+- [x] เพิ่ม workflow Front Desk ให้ ASSISTANT บันทึกเลขบัตรประชาชนด้วยการกรอกเอง และห้ามเปลี่ยนค่าเมื่อมีข้อมูลแล้ว
+- [x] ออกแบบ Smart Card integration boundary สำหรับ local reader bridge ที่ไม่ฝัง driver หรือข้อมูลบัตรในเว็บแอป และรองรับการกรอกเองเมื่อไม่มีอุปกรณ์
+- [x] เพิ่ม UI ที่แสดงสถานะเลขบัตรแบบ masked, อธิบายข้อจำกัด write-once และไม่แสดงค่าที่อ่านจาก Smart Card โดยไม่จำเป็น
+- [x] ใช้มาตรฐาน mask เลขบัตรประชาชน 2 หลักแรกและ 3 หลักท้าย (`12••••••••345`) ในทุก UI และ API response ที่อนุญาตให้แสดงค่า
+- [x] เพิ่ม Vitest ครอบคลุม checksum/validation, write-once enforcement, RBAC, masking และ audit trail ของเลขบัตรประชาชน
+- [x] สร้างชุด Shared Project Context ใน docs/project-context จากสถานะจริงของโครงการ เพื่อให้แชทใหม่เริ่มงานต่อได้โดยไม่ต้องอ่านบทสนทนาเดิมทั้งหมด
+- [ ] ตรวจสอบความปลอดภัยของ repository ทำความสะอาดเฉพาะไฟล์ที่ไม่ควร commit และ commit/push โครงการ Clinic HIS ไปยัง remote GitHub เดิม
+- [x] จัดทำ Dependency Security Audit แบบ read-only จาก pnpm audit, package manifest และ lockfile โดยวิเคราะห์ผลกระทบจริงและทางเลือก remediation โดยไม่แก้ dependency
