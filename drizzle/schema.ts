@@ -131,6 +131,7 @@ export const medications = mysqlTable("medications", {
   tradeName: varchar("tradeName", { length: 255 }),
   dosageForm: varchar("dosageForm", { length: 120 }).notNull(),
   strength: varchar("strength", { length: 120 }).notNull(),
+  minStockThreshold: int("minStockThreshold").default(10).notNull(),
   isActive: boolean("isActive").default(true).notNull(),
   createdBy: int("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -238,6 +239,10 @@ export const invoices = mysqlTable("invoices", {
   invoiceNumber: varchar("invoiceNumber", { length: 48 }).notNull().unique(),
   issueRequestId: varchar("issueRequestId", { length: 100 }).unique(),
   status: mysqlEnum("status", ["DRAFT", "ISSUED", "PAID", "VOID"]).default("DRAFT").notNull(),
+  subtotalSatang: int("subtotalSatang").default(0).notNull(),
+  discountSatang: int("discountSatang").default(0).notNull(),
+  discountReason: varchar("discountReason", { length: 500 }),
+  discountApprovedBy: int("discountApprovedBy"),
   totalSatang: int("totalSatang").default(0).notNull(),
   issuedBy: int("issuedBy").notNull(),
   issuedAt: timestamp("issuedAt"),
@@ -279,7 +284,7 @@ export const invoiceLines = mysqlTable("invoiceLines", {
 export const payments = mysqlTable("payments", {
   id: int("id").autoincrement().primaryKey(),
   invoiceId: int("invoiceId").notNull(),
-  paymentMethod: mysqlEnum("paymentMethod", ["CASH", "EXTERNAL_REFERENCE"]).notNull(),
+  paymentMethod: mysqlEnum("paymentMethod", ["CASH", "PROMPTPAY", "EXTERNAL_REFERENCE", "CREDIT_CARD"]).notNull(),
   amountSatang: int("amountSatang").notNull(),
   externalReference: varchar("externalReference", { length: 255 }),
   idempotencyKey: varchar("idempotencyKey", { length: 100 }).notNull().unique(),
@@ -295,6 +300,24 @@ export const invoiceVoids = mysqlTable("invoiceVoids", {
   voidedAt: timestamp("voidedAt").defaultNow().notNull(),
 });
 
+/** Daily cash reconciliation and shift closeout table */
+export const dailyCloseouts = mysqlTable("dailyCloseouts", {
+  id: int("id").autoincrement().primaryKey(),
+  closeoutDate: date("closeoutDate", { mode: "string" }).notNull().unique(),
+  closedBy: int("closedBy").notNull(),
+  totalCashExpectedSatang: int("totalCashExpectedSatang").notNull(),
+  totalCashCountedSatang: int("totalCashCountedSatang").notNull(),
+  cashDifferenceSatang: int("cashDifferenceSatang").notNull(),
+  totalPromptPaySatang: int("totalPromptPaySatang").notNull(),
+  totalOtherSatang: int("totalOtherSatang").notNull(),
+  totalRevenueSatang: int("totalRevenueSatang").notNull(),
+  totalInvoicesCount: int("totalInvoicesCount").notNull(),
+  notes: varchar("notes", { length: 500 }),
+  closedAt: timestamp("closedAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => [index("daily_closeouts_date_idx").on(table.closeoutDate)]);
+
 /** Audit metadata must contain only technical/contextual values and never patient-identifying or clinical text. */
 export const auditEvents = mysqlTable("auditEvents", {
   id: int("id").autoincrement().primaryKey(),
@@ -309,18 +332,38 @@ export const auditEvents = mysqlTable("auditEvents", {
   occurredAt: timestamp("occurredAt").defaultNow().notNull(),
 }, table => [index("audit_actor_time_idx").on(table.actorUserId, table.occurredAt), index("audit_entity_idx").on(table.entityType, table.entityId)]);
 
+export const clinicalPresets = mysqlTable("clinicalPresets", {
+  id: int("id").autoincrement().primaryKey(),
+  doctorId: int("doctorId").notNull(),
+  name: varchar("name", { length: 120 }).notNull(),
+  description: varchar("description", { length: 500 }),
+  diagnosesJson: text("diagnosesJson").notNull(),
+  medicationsJson: text("medicationsJson").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => [index("clinical_presets_doctor_idx").on(table.doctorId)]);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Patient = typeof patients.$inferSelect;
+export type InsertPatient = typeof patients.$inferInsert;
 export type Visit = typeof visits.$inferSelect;
+export type InsertVisit = typeof visits.$inferInsert;
 export type TriageRecord = typeof triageRecords.$inferSelect;
 export type QueueEntry = typeof queueEntries.$inferSelect;
 export type ClinicalNote = typeof clinicalNotes.$inferSelect;
+export type InsertClinicalNote = typeof clinicalNotes.$inferInsert;
 export type VisitDiagnosis = typeof visitDiagnoses.$inferSelect;
 export type Medication = typeof medications.$inferSelect;
+export type InsertMedication = typeof medications.$inferInsert;
 export type ClinicalOrder = typeof clinicalOrders.$inferSelect;
 export type MedicationOrderItem = typeof medicationOrderItems.$inferSelect;
 export type InventoryLot = typeof inventoryLots.$inferSelect;
+export type InsertInventoryLot = typeof inventoryLots.$inferInsert;
 export type Dispensation = typeof dispensations.$inferSelect;
 export type Invoice = typeof invoices.$inferSelect;
+export type Payment = typeof payments.$inferSelect;
+export type DailyCloseout = typeof dailyCloseouts.$inferSelect;
+export type InsertDailyCloseout = typeof dailyCloseouts.$inferInsert;
 export type ServiceCharge = typeof serviceCharges.$inferSelect;
+export type ClinicalPreset = typeof clinicalPresets.$inferSelect;

@@ -91,4 +91,36 @@
 - [x] สร้างชุด Shared Project Context ใน docs/project-context จากสถานะจริงของโครงการ เพื่อให้แชทใหม่เริ่มงานต่อได้โดยไม่ต้องอ่านบทสนทนาเดิมทั้งหมด
 - [x] ตรวจสอบความปลอดภัยของ repository ทำความสะอาดเฉพาะไฟล์ที่ไม่ควร commit และ commit/push โครงการ Clinic HIS ไปยัง remote GitHub เดิม
 - [x] จัดทำ Dependency Security Audit แบบ read-only จาก pnpm audit, package manifest และ lockfile โดยวิเคราะห์ผลกระทบจริงและทางเลือก remediation โดยไม่แก้ dependency
+- [x] ย้าย runtime ไปที่ Windows localhost (`D:\mor-paul`) ด้วย `pnpm dev:windows`; ยืนยัน HTTP local, `pnpm check`, Vitest 76 tests และ production build สำเร็จ โดยไม่แก้ฟีเจอร์หรือข้อมูลผู้ป่วย
 
+## จากเอกสาร Master Blueprint (นำเข้า 2026-08-20) — เฉพาะรายการที่ยังไม่ครอบคลุมในสแตกปัจจุบัน
+
+- [x] ~~เพิ่มการบันทึกสัญญาณชีพ~~ — ตรวจโค้ดจริงแล้วพบว่ามีอยู่แล้วครบ (ความดัน ชีพจร อุณหภูมิ SpO₂ น้ำหนัก ส่วนสูง) ใน `server/routers/frontDesk.ts` (`recordTriage`) และหน้าจอ Triage ที่ `client/src/pages/QueueBoard.tsx` พร้อม RBAC และ audit trail — รายการเดิมเข้าใจผิด แก้ไขแล้ว
+- [x] เพิ่มป้ายเตือนแพ้ยาสีแดงเด่นชัด (`#EF4444`) — ฟิลด์ `allergySummary` มีอยู่แล้วที่ Front Desk ตอนลงทะเบียน แต่ไม่เคยถูกส่งมาที่หน้า Triage/Queue เลย และที่ Doctor Console ใช้สีส้มอ่อนแทนสีแดงที่ประกาศไว้เป็น design token; แก้แล้ว: เพิ่ม `allergySummary` ใน select ของ `listQueueByDate` (`server/db.ts`), เพิ่มป้ายแดงเด่นชัดทั้งในรายการคิวและหน้ารายละเอียดที่ `QueueBoard.tsx`, และปรับกล่องแพ้ยาใน `DoctorConsole.tsx` ให้ใช้สีแดง `#EF4444` เมื่อมีข้อมูล — ทดสอบผ่าน TypeCheck, Vitest 79 tests และ Vite build สำเร็จ
+- [x] เพิ่มการค้นหารหัสโรค ICD-10 ในหน้าบันทึก diagnosis ของ Doctor Console
+- [x] เพิ่มชุดคำสั่งยา/หัตถการด่วน (Pre-sets) ที่แพทย์กำหนดเองได้ เพื่อลดเวลาสั่งยาซ้ำสำหรับเคสที่พบบ่อย — เพิ่มตาราง `clinicalPresets` ใน schema, tRPC router `listPresets`, `createPreset`, `deletePreset` ใน `server/routers/doctorConsole.ts` พร้อม RBAC, และเพิ่ม UI toolbar พร้อมปุ่มลัด ⚡ นำเข้าคำสั่งด่วนและปุ่มบันทึก Pre-set ใน Doctor Console
+- [x] ออกแบบและพัฒนาการพิมพ์ฉลากยาบนกระดาษสติกเกอร์ไดคัท A4 ที่เชื่อมกับข้อมูล dispensation จริง — สร้าง `client/src/components/documents/MedicationLabelPrint.tsx` รองรับเลย์เอาต์สติกเกอร์ A4 (ตาราง 2×4) และฉลากเดี่ยว พร้อมชื่อยา ขนาดยา วิธีใช้ คำเตือน HN และวันที่ เชื่อมต่อปุ่มพิมพ์ใน Cashier และ Doctor Console
+- [x] ออกแบบและพัฒนาแบบฟอร์มพิมพ์ใบเสร็จรับเงิน/ใบสรุปรายการยาบนกระดาษ A5 จากข้อมูล invoice จริง — สร้าง `client/src/components/documents/InvoiceReceiptPrint.tsx` และ `shared/bahtText.ts` แปลงยอดเงินเป็นภาษาไทยตัวอักษร พร้อมตารางแจกแจงค่ายา/ค่าบริการ ข้อมูลคลินิก และช่องลงนาม เชื่อมต่อปุ่มพิมพ์ใบเสร็จ A5 ใน Cashier
+- [x] ออกแบบและพัฒนาแบบฟอร์มพิมพ์ใบรับรองแพทย์และใบส่งตัวบนกระดาษ A4 จากข้อมูล EMR ที่แพทย์ลงนามแล้ว — สร้าง `client/src/components/documents/MedicalCertificatePrint.tsx` รองรับ 2 แท็บ (ใบรับรองแพทย์ตามมาตรฐานแพทยสภา และใบส่งตัวผู้ป่วย) ดึงข้อมูลสัญญาณชีพ การวินิจฉัย ยาที่ได้รับ พร้อมช่องปรับแต่งวันลาพักรักษาตัวและความเห็นแพทย์ เชื่อมต่อปุ่มพิมพ์ใน Doctor Console
+- [x] ประเมินและพัฒนาระบบ QR PromptPay เป็นช่องทางชำระเงินเพิ่มเติมจากเงินสดใน Cashier workflow — พัฒนาโมดูลสร้าง EMVCo payload (`shared/promptpay.ts`), QR matrix generator แบบออฟไลน์ (`shared/qrcode.ts`), คอมโพเนนต์แสดงผล QR (`client/src/components/PromptPayQr.tsx`), รองรับการระบุยอดและเลขอ้างอิงสลิปใน Cashier และใบเสร็จรับเงิน A5
+- [x] เพิ่มหน้าจอ Audit Log สำหรับ SYSTEM_ADMIN ที่แสดงเฉพาะ metadata การเข้าใช้งาน/การแก้ไข โดยไม่เปิดเผย PHI ตามหลัก Zero Patient Data Access
+- [ ] ออกแบบ workflow ถ่ายภาพเอกสารยินยอม (Consent Form) ผ่านแท็บเล็ตด้วย HTML5 Camera API ที่ส่งเข้า private document storage ทันทีโดยไม่บันทึกลง Camera Roll ของอุปกรณ์ (ต่อยอดจากงาน private document storage ที่ยังค้างอยู่)
+
+## จากการวิเคราะห์ตารางฟังก์ชัน P0–P3 เทียบกับโค้ดจริง (นำเข้า 2026-08-20) — ดูรายละเอียดที่ docs/feature-gap-and-roadmap-th.md
+
+### เฟส A — ปิดช่องว่างความปลอดภัย/ตรวจสอบย้อนหลัง
+- [x] เพิ่ม privacy notice / consent checkbox ตอนลงทะเบียนผู้รับบริการที่ Front Desk
+- [x] เพิ่มการแจ้งเตือนกรณีข้อมูลผู้ป่วยอาจซ้ำ (ชื่อ+วันเกิดตรงกับที่มีอยู่) ก่อนสร้าง HN ใหม่
+- [x] เพิ่มหน้าประวัติการรับบริการแบบสรุปของผู้ป่วยรายคน (Doctor Console ปัจจุบันเห็นเฉพาะ encounter ที่กำลังตรวจ)
+- [x] เพิ่ม audit event เมื่อมีการ export รายงาน CSV จาก Reports
+
+### เฟส B — งานหน้าร้าน/การเงินให้สมบูรณ์ขึ้น
+- [x] ออกแบบและเพิ่มฟีเจอร์ส่วนลดบนใบแจ้งหนี้ พร้อมระบุเหตุผลและผู้อนุมัติ พร้อม audit trail — เพิ่มฟิลด์ `subtotalSatang`, `discountSatang`, `discountReason`, `discountApprovedBy` ในตาราง `invoices`, ฟอร์มกรอกส่วนลดและเหตุผลในหน้า Cashier และบันทึก audit log ทุกครั้ง
+- [x] เพิ่มหน้าจอตรวจนับ/ปิดยอดเงินสดประจำวันสำหรับ Cashier — เพิ่มตาราง `dailyCloseouts`, Backend คำนวณยอดเงินสด/พร้อมเพย์/ยอดรวมที่คาดหวัง, หน้าจอเปรียบเทียบยอดนับได้จริง (Cash Drawer Reconciliation) แสดงผลต่างเงินขาด/เกิน และบันทึกประวัติการปิดรอบกะ
+- [ ] เพิ่ม template บันทึกการตรวจ (SOAP) ตามประเภทบริการที่พบบ่อย ทำคู่กับชุดคำสั่งยาด่วนที่ backlog ไว้แล้ว
+- [x] เพิ่มจุดสั่งซื้อขั้นต่ำ (reorder point) ต่อรายการยา และแจ้งเตือนของใกล้หมดตามจำนวนคงเหลือ — เพิ่มฟิลด์ `minStockThreshold` ในตาราง `medications`, ระบบคำนวณยอดคงเหลือจริงจาก Lot (`onHandQuantity`), ฟิลเตอร์และป้ายเตือนสต็อกต่ำกว่าเกณฑ์ใน `MedicationCatalog.tsx`, และรายงานจำนวนยาต่ำกว่าเกณฑ์ใน Reports
+- [x] เพิ่ม Dashboard: ยอดขายแยกตามวิธีชำระเงิน และจำนวน/ยอดใบแจ้งหนี้ที่ยังไม่รับชำระ — เพิ่ม Card แจกแจงยอดชำระตามช่องทาง (เงินสด, PromptPay, บัตร/โอนอื่นๆ), การ์ดติดตามใบแจ้งหนี้ค้างชำระ (จำนวนใบ + ยอดเงิน), ยาต่ำกว่าเกณฑ์ขั้นต่ำ และอัปเดตส่งออกรายงาน CSV ครบถ้วน
+
+### เฟส C — ฟีเจอร์ใหญ่ที่ต้องตัดสินใจเชิงธุรกิจก่อนเริ่ม (ยังไม่เริ่ม รอคุยกับเจ้าของระบบ)
+- [ ] ออกแบบระบบนัดหมายล่วงหน้า (ปฏิทินวัน/สัปดาห์, สถานะไม่มาตามนัด) — ต้องออกแบบ schema ใหม่ทั้งหมด
+- [ ] ตัดสินใจช่องทางแจ้งเตือน/ติดตามนัด (SMS / LINE OA / โทรตามรายชื่อด้วยมือ) ก่อนเริ่มพัฒนาระบบเตือนนัด เพราะขัดกับกฎ "ใช้เทคโนโลยีน้อยที่สุด" ที่ยึดไว้เดิม

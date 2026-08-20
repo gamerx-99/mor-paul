@@ -1,7 +1,8 @@
+import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getAggregateOperationsReport } from "../db";
-import { protectedProcedure, router } from "../_core/trpc";
+import { getAggregateOperationsReport, listAuditLogs, recordReportExportAudit, type AuditContext } from "../db";
+import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 
 const dateRangeInput = z.object({
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -18,6 +19,10 @@ const dateRangeInput = z.object({
   }
 });
 
+function auditFor(user: { id: number; role: AuditContext["actorRole"] }): AuditContext {
+  return { actorUserId: user.id, actorRole: user.role, requestId: randomUUID() };
+}
+
 export const reportsRouter = router({
   /**
    * All signed-in roles may read this one deliberately aggregate-only contract.
@@ -32,4 +37,48 @@ export const reportsRouter = router({
       throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "ไม่สามารถจัดทำรายงานได้ในขณะนี้" });
     }
   }),
+
+  /**
+   * Audit log viewer is exclusively available to SYSTEM_ADMIN and provides zero-PHI activity trails.
+   */
+  listAuditLogs: adminProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(100).optional(),
+        offset: z.number().int().min(0).optional(),
+        action: z.string().trim().max(96).optional().nullable(),
+        actorRole: z.enum(["SYSTEM_ADMIN", "DOCTOR", "ASSISTANT"]).optional().nullable(),
+        outcome: z.enum(["ALLOWED", "DENIED", "FAILED"]).optional().nullable(),
+        startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+        endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+      })
+    )
+    .query(async ({ input }) => {
+      try {
+        return await listAuditLogs(input);
+      } catch {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "ไม่สามารถดึงข้อมูล Audit Log ได้" });
+      }
+    }),
+
+  /**
+   * Explicit audit trail recording when reports CSV is exported by an authorized user.
+   */
+  logCsvExport: protectedProcedure
+    .input(
+      z.object({
+        reportType: z.string().trim().min(1).max(64),
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await recordReportExportAudit(auditFor(ctx.user), input.reportType, { from: input.from, to: input.to });
+        return { success: true };
+      } catch {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "ไม่สามารถบันทึก Audit การ Export ได้" });
+      }
+    }),
 });
+

@@ -11,6 +11,7 @@ vi.mock("@/lib/trpc", () => ({
   trpc: {
     reports: {
       operationalSummary: { useQuery: reportsApi.summaryQuery },
+      logCsvExport: { useMutation: () => ({ mutate: vi.fn() }) },
     },
   },
 }));

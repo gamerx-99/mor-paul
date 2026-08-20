@@ -1,7 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { addServiceCharge, bulkImportMedicationCatalog, createMedicationCatalogItem, dispenseSignedOrder, getCashierVisit, issueVisitInvoice, listActiveMedications, listCashierVisits, receiveInventoryLot, receiveInvoicePayment, setMedicationUnitPrice, type AuditContext } from "../db";
+import {
+  addServiceCharge,
+  bulkImportMedicationCatalog,
+  createMedicationCatalogItem,
+  dispenseSignedOrder,
+  getCashierVisit,
+  getDailyCashierSummary,
+  issueVisitInvoice,
+  listActiveMedications,
+  listCashierVisits,
+  receiveInventoryLot,
+  receiveInvoicePayment,
+  setMedicationUnitPrice,
+  submitDailyCloseout,
+  updateMedicationMinStockThreshold,
+  type AuditContext,
+} from "../db";
 import { adminProcedure, assistantProcedure, medicationCatalogReadProcedure, router } from "../_core/trpc";
 
 function auditFor(user: { id: number; role: AuditContext["actorRole"] }): AuditContext {
@@ -63,6 +79,13 @@ export const pharmacyRouter = router({
         mapDomainError(error);
       }
     }),
+    updateMinStock: adminProcedure.input(z.object({ medicationId: z.number().int().positive(), minStockThreshold: z.number().int().min(0).max(1_000_000) })).mutation(async ({ ctx, input }) => {
+      try {
+        return await updateMedicationMinStockThreshold(input, auditFor(ctx.user));
+      } catch (error) {
+        mapDomainError(error);
+      }
+    }),
     bulkImport: adminProcedure.input(bulkMedicationImportInput).mutation(async ({ ctx, input }) => {
       try {
         return await bulkImportMedicationCatalog(input.rows, auditFor(ctx.user));
@@ -107,19 +130,50 @@ export const pharmacyRouter = router({
         mapDomainError(error);
       }
     }),
-    issueInvoice: assistantProcedure.input(z.object({ visitId: z.number().int().positive(), idempotencyKey: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    issueInvoice: assistantProcedure.input(z.object({
+      visitId: z.number().int().positive(),
+      idempotencyKey: z.string().uuid(),
+      discountSatang: z.number().int().min(0).max(1_000_000_000).optional(),
+      discountReason: z.string().trim().max(500).optional(),
+      discountApprovedBy: z.number().int().positive().optional(),
+    })).mutation(async ({ ctx, input }) => {
       try {
         return await issueVisitInvoice(input, ctx.user.id, auditFor(ctx.user));
       } catch (error) {
         mapDomainError(error);
       }
     }),
-    receivePayment: assistantProcedure.input(z.object({ invoiceId: z.number().int().positive(), paymentMethod: z.enum(["CASH", "EXTERNAL_REFERENCE"]), amountSatang: z.number().int().min(0).max(1_000_000_000), externalReference: z.string().trim().max(255).optional().transform(value => value || null), idempotencyKey: z.string().uuid() })).mutation(async ({ ctx, input }) => {
+    receivePayment: assistantProcedure.input(z.object({
+      invoiceId: z.number().int().positive(),
+      paymentMethod: z.enum(["CASH", "PROMPTPAY", "EXTERNAL_REFERENCE", "CREDIT_CARD"]),
+      amountSatang: z.number().int().min(0).max(1_000_000_000),
+      externalReference: z.string().trim().max(255).optional().transform(value => value || null),
+      idempotencyKey: z.string().uuid(),
+    })).mutation(async ({ ctx, input }) => {
       try {
         return await receiveInvoicePayment(input, ctx.user.id, auditFor(ctx.user));
       } catch (error) {
         mapDomainError(error);
       }
     }),
+    getDailySummary: assistantProcedure.input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })).query(async ({ input }) => {
+      try {
+        return await getDailyCashierSummary(input.date);
+      } catch (error) {
+        mapDomainError(error);
+      }
+    }),
+    submitDailyCloseout: assistantProcedure.input(z.object({
+      closeoutDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      totalCashCountedSatang: z.number().int().min(0).max(10_000_000_000),
+      notes: z.string().trim().max(500).optional().transform(v => v || null),
+    })).mutation(async ({ ctx, input }) => {
+      try {
+        return await submitDailyCloseout(input, ctx.user.id, auditFor(ctx.user));
+      } catch (error) {
+        mapDomainError(error);
+      }
+    }),
   }),
 });
+

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const database = vi.hoisted(() => ({
   getAggregateOperationsReport: vi.fn(),
+  listAuditLogs: vi.fn(),
+  recordReportExportAudit: vi.fn(),
 }));
 
 vi.mock("./db", () => database);
@@ -55,5 +57,26 @@ describe("Reports v1 aggregate RBAC and contract", () => {
       code: "INTERNAL_SERVER_ERROR",
       message: "ไม่สามารถจัดทำรายงานได้ในขณะนี้",
     });
+  });
+
+  it("permits only SYSTEM_ADMIN to access listAuditLogs and denies clinical roles", async () => {
+    database.listAuditLogs.mockResolvedValue({ items: [], totalCount: 0, limit: 50, offset: 0 });
+
+    await expect(callerFor(admin).listAuditLogs({})).resolves.toMatchObject({ totalCount: 0 });
+    expect(database.listAuditLogs).toHaveBeenCalled();
+
+    for (const user of [doctor, assistant]) {
+      await expect(callerFor(user).listAuditLogs({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
+  });
+
+  it("allows authenticated roles to log CSV export audit", async () => {
+    database.recordReportExportAudit.mockResolvedValue(undefined);
+
+    await expect(
+      callerFor(assistant).logCsvExport({ reportType: "OPERATIONAL_SUMMARY", from: "2026-08-01", to: "2026-08-07" })
+    ).resolves.toMatchObject({ success: true });
+
+    expect(database.recordReportExportAudit).toHaveBeenCalled();
   });
 });

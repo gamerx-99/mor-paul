@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
 import AccessGate from "@/pages/AccessGate";
-import { Banknote, FileBarChart, HeartPulse, KeyRound, LayoutDashboard, LogOut, PackageOpen, PanelLeft, Settings2, Stethoscope, UsersRound } from "lucide-react";
+import { Banknote, FileBarChart, HeartPulse, KeyRound, LayoutDashboard, LogOut, PackageOpen, PanelLeft, Settings2, ShieldCheck, Stethoscope, UsersRound } from "lucide-react";
 import React, { CSSProperties, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
@@ -40,6 +40,7 @@ const menuItems: Array<{ icon: typeof LayoutDashboard; label: string; path: stri
   { icon: Banknote, label: "จ่ายยาและการเงิน", path: "/cashier", roles: ["ASSISTANT"] },
   { icon: FileBarChart, label: "รายงานสรุป", path: "/reports", roles: ["SYSTEM_ADMIN", "DOCTOR", "ASSISTANT"] },
   { icon: Settings2, label: "บัญชีบุคลากร", path: "/staff", roles: ["SYSTEM_ADMIN"] },
+  { icon: ShieldCheck, label: "บันทึก Audit", path: "/audit-logs", roles: ["SYSTEM_ADMIN"] },
 ];
 
 const roleLabel: Record<ClinicalRole, string> = {

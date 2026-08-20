@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, gt, gte, isNull, like, lt, lte, ne, or, sql, type ExtractTablesWithRelations } from "drizzle-orm";
 import { drizzle, type MySql2Transaction } from "drizzle-orm/mysql2";
 import { randomBytes } from "node:crypto";
-import { auditEvents, clinicalNotes, clinicalOrders, dispensationItems, dispensations, inventoryLots, invoiceLines, invoices, medicationOrderItems, medicationPrices, medications, patients, payments, queueEntries, serviceCharges, stockMovements, triageRecords, userSessions, users, visitDiagnoses, visits, type User } from "../drizzle/schema";
+import { auditEvents, clinicalNotes, clinicalOrders, clinicalPresets, dailyCloseouts, dispensationItems, dispensations, inventoryLots, invoiceLines, invoices, medicationOrderItems, medicationPrices, medications, patients, payments, queueEntries, serviceCharges, stockMovements, triageRecords, userSessions, users, visitDiagnoses, visits, type User } from "../drizzle/schema";
 import { summarizePaymentsByClinicDay } from "./reporting";
 import { decryptNationalId, encryptNationalId, nationalIdLookupHash } from "./nationalIdCrypto";
 import { isValidThaiNationalId, maskThaiNationalId, normalizeThaiNationalId } from "../shared/nationalId";
@@ -295,6 +295,7 @@ export type PatientRegistrationInput = {
   address?: string | null;
   allergySummary?: string | null;
   nationalId?: string | null;
+  consentAccepted?: boolean;
 };
 
 function validateDateOnly(value: string) {
@@ -308,13 +309,43 @@ function safeAuditMetadata(value: Record<string, string | number | boolean>) {
   return JSON.stringify(value);
 }
 
+export async function checkDuplicatePatients(input: { firstName: string; lastName: string; dateOfBirth?: string | null }) {
+  const db = await requiredDb();
+  const firstName = input.firstName.trim();
+  const lastName = input.lastName.trim();
+  if (!firstName) return [];
+
+  const conditions = [
+    and(eq(patients.firstName, firstName), eq(patients.lastName, lastName)),
+  ];
+
+  if (input.dateOfBirth && /^\d{4}-\d{2}-\d{2}$/.test(input.dateOfBirth)) {
+    conditions.push(and(eq(patients.firstName, firstName), eq(patients.dateOfBirth, input.dateOfBirth)));
+  }
+
+  return db
+    .select({
+      id: patients.id,
+      hn: patients.hn,
+      firstName: patients.firstName,
+      lastName: patients.lastName,
+      dateOfBirth: patients.dateOfBirth,
+      gender: patients.gender,
+      phone: patients.phone,
+      createdAt: patients.createdAt,
+    })
+    .from(patients)
+    .where(or(...conditions))
+    .limit(10);
+}
+
 export async function createPatient(input: PatientRegistrationInput, audit: AuditContext) {
   const db = await requiredDb();
   return db.transaction(async tx => {
     // A short random placeholder permits allocating the database id first; it is
     // replaced within the same transaction by the permanent, sequential HN.
     const temporaryHn = `P${randomBytes(10).toString("hex")}`;
-    const { nationalId, ...patientInput } = input;
+    const { nationalId, consentAccepted, ...patientInput } = input;
     const normalizedNationalId = nationalId ? normalizeThaiNationalId(nationalId) : null;
     if (normalizedNationalId && !isValidThaiNationalId(normalizedNationalId)) throw new Error("INVALID_NATIONAL_ID");
     const result = await tx.insert(patients).values({
@@ -338,7 +369,7 @@ export async function createPatient(input: PatientRegistrationInput, audit: Audi
       entityId: String(patientId),
       outcome: "ALLOWED",
       requestId: audit.requestId,
-      metadata: safeAuditMetadata({ source: "front_desk", nationalIdRecorded: Boolean(normalizedNationalId) }),
+      metadata: safeAuditMetadata({ source: "front_desk", nationalIdRecorded: Boolean(normalizedNationalId), consentAccepted: Boolean(consentAccepted) }),
     });
     const created = await tx.select(patientClientSelection).from(patients).where(eq(patients.id, patientId)).limit(1);
     if (!created[0]) throw new Error("PATIENT_CREATE_FAILED");
@@ -473,6 +504,7 @@ export async function listQueueByDate(queueDateInput: string) {
       hn: patients.hn,
       firstName: patients.firstName,
       lastName: patients.lastName,
+      allergySummary: patients.allergySummary,
       triageUrgency: triageRecords.urgency,
       triagePerformedAt: triageRecords.performedAt,
       bloodPressureSystolic: triageRecords.bloodPressureSystolic,
@@ -759,6 +791,95 @@ export async function signClinicalEncounter(input: SignClinicalEncounterInput, d
   });
 }
 
+export type ClinicalPresetInput = {
+  name: string;
+  description?: string | null;
+  diagnoses: Array<{ code?: string | null; display: string }>;
+  medications: Array<{
+    medicationId: number;
+    dose: string;
+    frequency: string;
+    duration?: string | null;
+    quantityPrescribed: number;
+    instructions?: string | null;
+  }>;
+};
+
+export async function listClinicalPresets(doctorId: number) {
+  const db = await requiredDb();
+  const presets = await db
+    .select()
+    .from(clinicalPresets)
+    .where(eq(clinicalPresets.doctorId, doctorId))
+    .orderBy(desc(clinicalPresets.createdAt));
+
+  return presets.map(p => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    diagnoses: JSON.parse(p.diagnosesJson || "[]") as Array<{ code?: string; display: string }>,
+    medications: JSON.parse(p.medicationsJson || "[]") as Array<{
+      medicationId: number;
+      dose: string;
+      frequency: string;
+      duration?: string | null;
+      quantityPrescribed: number;
+      instructions?: string | null;
+    }>,
+    createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
+  }));
+}
+
+export async function createClinicalPreset(input: ClinicalPresetInput, doctorId: number, audit: AuditContext) {
+  const db = await requiredDb();
+  return db.transaction(async tx => {
+    const result = await tx.insert(clinicalPresets).values({
+      doctorId,
+      name: input.name.trim(),
+      description: input.description?.trim() || null,
+      diagnosesJson: JSON.stringify(input.diagnoses),
+      medicationsJson: JSON.stringify(input.medications),
+    });
+    const presetId = Number(result[0].insertId);
+    await tx.insert(auditEvents).values({
+      action: "CLINICAL_PRESET_CREATED",
+      actorUserId: audit.actorUserId,
+      actorRole: audit.actorRole,
+      entityType: "CLINICAL_PRESET",
+      entityId: String(presetId),
+      outcome: "ALLOWED",
+      requestId: audit.requestId,
+      metadata: safeAuditMetadata({ name: input.name }),
+    });
+    return { id: presetId, name: input.name };
+  });
+}
+
+export async function deleteClinicalPreset(presetId: number, doctorId: number, audit: AuditContext) {
+  const db = await requiredDb();
+  return db.transaction(async tx => {
+    const [existing] = await tx
+      .select()
+      .from(clinicalPresets)
+      .where(and(eq(clinicalPresets.id, presetId), eq(clinicalPresets.doctorId, doctorId)))
+      .limit(1);
+    if (!existing) throw new Error("PRESET_NOT_FOUND");
+    await tx.delete(clinicalPresets).where(eq(clinicalPresets.id, presetId));
+    await tx.insert(auditEvents).values({
+      action: "CLINICAL_PRESET_DELETED",
+      actorUserId: audit.actorUserId,
+      actorRole: audit.actorRole,
+      entityType: "CLINICAL_PRESET",
+      entityId: String(presetId),
+      outcome: "ALLOWED",
+      requestId: audit.requestId,
+      metadata: safeAuditMetadata({ name: existing.name }),
+    });
+    return { id: presetId, success: true };
+  });
+}
+
 export type MedicationCatalogInput = {
   code: string;
   genericName: string;
@@ -770,12 +891,62 @@ export type MedicationCatalogInput = {
 export async function listActiveMedications(query?: string) {
   const db = await requiredDb();
   const term = query?.trim() ?? "";
-  return db
-    .select({ id: medications.id, code: medications.code, genericName: medications.genericName, tradeName: medications.tradeName, dosageForm: medications.dosageForm, strength: medications.strength })
+  const medRows = await db
+    .select({
+      id: medications.id,
+      code: medications.code,
+      genericName: medications.genericName,
+      tradeName: medications.tradeName,
+      dosageForm: medications.dosageForm,
+      strength: medications.strength,
+      minStockThreshold: medications.minStockThreshold,
+    })
     .from(medications)
     .where(and(eq(medications.isActive, true), term ? or(like(medications.code, `%${term}%`), like(medications.genericName, `%${term}%`), like(medications.tradeName, `%${term}%`)) : undefined))
     .orderBy(asc(medications.genericName))
-    .limit(50);
+    .limit(100);
+
+  if (medRows.length === 0) return [];
+
+  const stockRows = await db
+    .select({
+      medicationId: inventoryLots.medicationId,
+      remainingQuantity: sql<number>`coalesce(sum(${inventoryLots.remainingQuantity}), 0)`,
+    })
+    .from(inventoryLots)
+    .where(or(...medRows.map(m => eq(inventoryLots.medicationId, m.id))))
+    .groupBy(inventoryLots.medicationId);
+
+  const stockMap = new Map(stockRows.map(r => [r.medicationId, Number(r.remainingQuantity ?? 0)]));
+
+  return medRows.map(m => {
+    const onHandQuantity = stockMap.get(m.id) ?? 0;
+    return {
+      ...m,
+      onHandQuantity,
+      isLowStock: onHandQuantity <= m.minStockThreshold,
+    };
+  });
+}
+
+export async function updateMedicationMinStockThreshold(input: { medicationId: number; minStockThreshold: number }, audit: AuditContext) {
+  const db = await requiredDb();
+  return db.transaction(async tx => {
+    const [medication] = await tx.select({ id: medications.id }).from(medications).where(eq(medications.id, input.medicationId)).limit(1);
+    if (!medication) throw new Error("MEDICATION_NOT_FOUND");
+    await tx.update(medications).set({ minStockThreshold: input.minStockThreshold }).where(eq(medications.id, input.medicationId));
+    await tx.insert(auditEvents).values({
+      action: "MEDICATION_THRESHOLD_UPDATED",
+      actorUserId: audit.actorUserId,
+      actorRole: audit.actorRole,
+      entityType: "MEDICATION",
+      entityId: String(input.medicationId),
+      outcome: "ALLOWED",
+      requestId: audit.requestId,
+      metadata: safeAuditMetadata({ medicationId: input.medicationId, minStockThreshold: input.minStockThreshold }),
+    });
+    return { medicationId: input.medicationId, minStockThreshold: input.minStockThreshold };
+  });
 }
 
 export async function createMedicationCatalogItem(input: MedicationCatalogInput, audit: AuditContext) {
@@ -905,7 +1076,23 @@ export async function listCashierVisits() {
 export async function getCashierVisit(visitId: number) {
   const db = await requiredDb();
   const [visit] = await db
-    .select({ visitId: visits.id, visitStatus: visits.status, hn: patients.hn, firstName: patients.firstName, lastName: patients.lastName, clinicalOrderId: clinicalOrders.id, clinicalOrderStatus: clinicalOrders.status, invoiceId: invoices.id, invoiceNumber: invoices.invoiceNumber, invoiceStatus: invoices.status, totalSatang: invoices.totalSatang })
+    .select({
+      visitId: visits.id,
+      visitStatus: visits.status,
+      hn: patients.hn,
+      firstName: patients.firstName,
+      lastName: patients.lastName,
+      clinicalOrderId: clinicalOrders.id,
+      clinicalOrderStatus: clinicalOrders.status,
+      invoiceId: invoices.id,
+      invoiceNumber: invoices.invoiceNumber,
+      invoiceStatus: invoices.status,
+      subtotalSatang: invoices.subtotalSatang,
+      discountSatang: invoices.discountSatang,
+      discountReason: invoices.discountReason,
+      discountApprovedBy: invoices.discountApprovedBy,
+      totalSatang: invoices.totalSatang,
+    })
     .from(visits)
     .innerJoin(patients, eq(visits.patientId, patients.id))
     .leftJoin(clinicalOrders, eq(clinicalOrders.visitId, visits.id))
@@ -961,8 +1148,16 @@ export async function addServiceCharge(input: ServiceChargeInput, assistantId: n
   });
 }
 
+export type IssueInvoiceInput = {
+  visitId: number;
+  idempotencyKey: string;
+  discountSatang?: number;
+  discountReason?: string | null;
+  discountApprovedBy?: number | null;
+};
+
 /** Issues the single bill for a signed encounter, with medication and service lines preserved as distinct source types. */
-export async function issueVisitInvoice(input: { visitId: number; idempotencyKey: string }, assistantId: number, audit: AuditContext) {
+export async function issueVisitInvoice(input: IssueInvoiceInput, assistantId: number, audit: AuditContext) {
   const db = await requiredDb();
   return db.transaction(async tx => {
     const [replayed] = await tx.select({ id: invoices.id, visitId: invoices.visitId, invoiceNumber: invoices.invoiceNumber, totalSatang: invoices.totalSatang }).from(invoices).where(eq(invoices.issueRequestId, input.idempotencyKey)).limit(1);
@@ -982,7 +1177,7 @@ export async function issueVisitInvoice(input: { visitId: number; idempotencyKey
       invoiceNumber = existingInvoice.invoiceNumber;
     } else {
       invoiceNumber = `INV-${String(input.visitId).padStart(8, "0")}`;
-      const created = await tx.insert(invoices).values({ visitId: input.visitId, invoiceNumber, status: "DRAFT", totalSatang: 0, issuedBy: assistantId });
+      const created = await tx.insert(invoices).values({ visitId: input.visitId, invoiceNumber, status: "DRAFT", subtotalSatang: 0, discountSatang: 0, totalSatang: 0, issuedBy: assistantId });
       invoiceId = Number(created[0].insertId);
     }
 
@@ -1000,8 +1195,25 @@ export async function issueVisitInvoice(input: { visitId: number; idempotencyKey
       await tx.update(serviceCharges).set({ status: "INVOICED" }).where(and(eq(serviceCharges.visitId, input.visitId), eq(serviceCharges.status, "PENDING")));
     }
     const [lineTotals] = await tx.select({ totalSatang: sql<number>`coalesce(sum(${invoiceLines.lineTotalSatang}), 0)` }).from(invoiceLines).where(eq(invoiceLines.invoiceId, invoiceId));
-    const totalSatang = Number(lineTotals?.totalSatang ?? 0);
-    const updated = await tx.update(invoices).set({ status: "ISSUED", totalSatang, issuedBy: assistantId, issuedAt: now, issueRequestId: input.idempotencyKey }).where(and(eq(invoices.id, invoiceId), eq(invoices.status, "DRAFT")));
+    const subtotalSatang = Number(lineTotals?.totalSatang ?? 0);
+    const discountSatang = Math.min(subtotalSatang, Math.max(0, input.discountSatang ?? 0));
+    const totalSatang = subtotalSatang - discountSatang;
+
+    const [lineCountRow] = await tx.select({ count: count(invoiceLines.id) }).from(invoiceLines).where(and(eq(invoiceLines.invoiceId, invoiceId), eq(invoiceLines.sourceType, "MEDICATION_ORDER_ITEM")));
+    const medicationLineCount = Math.max(0, lineCountRow?.count ?? 0);
+
+    const updated = await tx.update(invoices).set({
+      status: "ISSUED",
+      subtotalSatang,
+      discountSatang,
+      discountReason: input.discountReason?.trim() || null,
+      discountApprovedBy: input.discountApprovedBy ?? (discountSatang > 0 ? assistantId : null),
+      totalSatang,
+      issuedBy: assistantId,
+      issuedAt: now,
+      issueRequestId: input.idempotencyKey,
+    }).where(and(eq(invoices.id, invoiceId), eq(invoices.status, "DRAFT")));
+
     if (Number(updated[0].affectedRows) !== 1) throw new Error("INVOICE_NOT_READY_FOR_ISSUING");
     const visitUpdated = await tx.update(visits).set({ status: "BILLED" }).where(and(eq(visits.id, input.visitId), eq(visits.status, "DISPENSING")));
     if (Number(visitUpdated[0].affectedRows) !== 1) throw new Error("VISIT_NOT_READY_FOR_BILLING");
@@ -1013,9 +1225,9 @@ export async function issueVisitInvoice(input: { visitId: number; idempotencyKey
       entityId: String(invoiceId),
       outcome: "ALLOWED",
       requestId: audit.requestId,
-      metadata: safeAuditMetadata({ visitId: input.visitId, totalSatang, medicationLineCount: Math.max(0, (await tx.select({ count: count(invoiceLines.id) }).from(invoiceLines).where(and(eq(invoiceLines.invoiceId, invoiceId), eq(invoiceLines.sourceType, "MEDICATION_ORDER_ITEM"))))[0]?.count ?? 0), serviceLineCount: pendingCharges.length }),
+      metadata: safeAuditMetadata({ visitId: input.visitId, subtotalSatang, discountSatang, totalSatang, medicationLineCount, serviceLineCount: pendingCharges.length }),
     });
-    return { invoiceId, visitId: input.visitId, invoiceNumber, totalSatang, replayed: false };
+    return { invoiceId, visitId: input.visitId, invoiceNumber, subtotalSatang, discountSatang, totalSatang, replayed: false };
   });
 }
 
@@ -1048,12 +1260,10 @@ export async function dispenseSignedOrder(input: { visitId: number; idempotencyK
     await tx.insert(dispensationItems).values(allocation.map(({ item, lot }) => ({ dispensationId, medicationOrderItemId: item.id, inventoryLotId: lot.id, quantityDispensed: item.quantityPrescribed })));
     await tx.insert(stockMovements).values(allocation.map(({ item, lot }, index) => ({ inventoryLotId: lot.id, movementType: "DISPENSE" as const, quantityDelta: -item.quantityPrescribed, referenceType: "DISPENSATION", referenceId: String(dispensationId), idempotencyKey: `${input.idempotencyKey}:${index}`, performedBy: assistantId })));
     const totalSatang = allocation.reduce((sum, entry) => sum + entry.item.quantityPrescribed * entry.price.unitPriceSatang, 0);
-    const invoiceResult = await tx.insert(invoices).values({ visitId: input.visitId, invoiceNumber: `INV-${String(input.visitId).padStart(8, "0")}`, status: "DRAFT", totalSatang, issuedBy: assistantId });
+    const invoiceResult = await tx.insert(invoices).values({ visitId: input.visitId, invoiceNumber: `INV-${String(input.visitId).padStart(8, "0")}`, status: "DRAFT", subtotalSatang: totalSatang, discountSatang: 0, totalSatang, issuedBy: assistantId });
     const invoiceId = Number(invoiceResult[0].insertId);
     await tx.insert(invoiceLines).values(allocation.map(({ item, price }) => ({ invoiceId, sourceType: "MEDICATION_ORDER_ITEM", sourceId: String(item.id), descriptionSnapshot: `${item.medicationNameSnapshot} ${item.strengthSnapshot}`, quantity: item.quantityPrescribed, unitPriceSatang: price.unitPriceSatang, lineTotalSatang: item.quantityPrescribed * price.unitPriceSatang })));
     await tx.update(dispensations).set({ status: "COMPLETED", dispensedBy: assistantId, completedAt: now }).where(eq(dispensations.id, dispensationId));
-    // The assistant must still add any applicable service charges and explicitly
-    // issue the bill before payment; dispensing alone never closes the workflow.
     await tx.insert(auditEvents).values([
       { action: "MEDICATION_DISPENSED", actorUserId: audit.actorUserId, actorRole: audit.actorRole, entityType: "DISPENSATION", entityId: String(dispensationId), outcome: "ALLOWED", requestId: audit.requestId, metadata: safeAuditMetadata({ visitId: input.visitId, itemCount: items.length }) },
       { action: "MEDICATION_BILL_LINES_PREPARED", actorUserId: audit.actorUserId, actorRole: audit.actorRole, entityType: "INVOICE", entityId: String(invoiceId), outcome: "ALLOWED", requestId: audit.requestId, metadata: safeAuditMetadata({ visitId: input.visitId, totalSatang }) },
@@ -1062,7 +1272,15 @@ export async function dispenseSignedOrder(input: { visitId: number; idempotencyK
   });
 }
 
-export async function receiveInvoicePayment(input: { invoiceId: number; paymentMethod: "CASH" | "EXTERNAL_REFERENCE"; amountSatang: number; externalReference?: string | null; idempotencyKey: string }, assistantId: number, audit: AuditContext) {
+export type ReceivePaymentInput = {
+  invoiceId: number;
+  paymentMethod: "CASH" | "PROMPTPAY" | "EXTERNAL_REFERENCE" | "CREDIT_CARD";
+  amountSatang: number;
+  externalReference?: string | null;
+  idempotencyKey: string;
+};
+
+export async function receiveInvoicePayment(input: ReceivePaymentInput, assistantId: number, audit: AuditContext) {
   const db = await requiredDb();
   return db.transaction(async tx => {
     const [replayed] = await tx.select().from(payments).where(eq(payments.idempotencyKey, input.idempotencyKey)).limit(1);
@@ -1071,9 +1289,19 @@ export async function receiveInvoicePayment(input: { invoiceId: number; paymentM
     if (!invoice) throw new Error("INVOICE_NOT_FOUND");
     if (invoice.status !== "ISSUED") throw new Error("INVOICE_NOT_READY_FOR_PAYMENT");
     if (invoice.totalSatang !== input.amountSatang) throw new Error("PAYMENT_AMOUNT_MISMATCH");
-    if (input.paymentMethod === "EXTERNAL_REFERENCE" && !input.externalReference?.trim()) throw new Error("EXTERNAL_REFERENCE_REQUIRED");
+    if ((input.paymentMethod === "EXTERNAL_REFERENCE" || input.paymentMethod === "CREDIT_CARD") && !input.externalReference?.trim()) {
+      throw new Error("EXTERNAL_REFERENCE_REQUIRED");
+    }
     const now = new Date();
-    const result = await tx.insert(payments).values({ invoiceId: input.invoiceId, paymentMethod: input.paymentMethod, amountSatang: input.amountSatang, externalReference: input.externalReference?.trim() || null, idempotencyKey: input.idempotencyKey, receivedBy: assistantId, receivedAt: now });
+    const result = await tx.insert(payments).values({
+      invoiceId: input.invoiceId,
+      paymentMethod: input.paymentMethod,
+      amountSatang: input.amountSatang,
+      externalReference: input.externalReference?.trim() || null,
+      idempotencyKey: input.idempotencyKey,
+      receivedBy: assistantId,
+      receivedAt: now,
+    });
     const paymentId = Number(result[0].insertId);
     const invoiceUpdate = await tx.update(invoices).set({ status: "PAID", paidAt: now }).where(and(eq(invoices.id, input.invoiceId), eq(invoices.status, "ISSUED")));
     if (Number(invoiceUpdate[0].affectedRows) !== 1) throw new Error("INVOICE_NOT_READY_FOR_PAYMENT");
@@ -1084,6 +1312,124 @@ export async function receiveInvoicePayment(input: { invoiceId: number; paymentM
       { action: "VISIT_CLOSED_AFTER_PAYMENT", actorUserId: audit.actorUserId, actorRole: audit.actorRole, entityType: "VISIT", entityId: String(invoice.visitId), outcome: "ALLOWED", requestId: audit.requestId, metadata: safeAuditMetadata({ invoiceId: input.invoiceId }) },
     ]);
     return { paymentId, invoiceId: input.invoiceId, paidAt: now, replayed: false };
+  });
+}
+
+export async function getDailyCashierSummary(dateStrInput: string) {
+  const db = await requiredDb();
+  const dateStr = validateDateOnly(dateStrInput);
+  const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
+  const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
+
+  const paymentRows = await db
+    .select({
+      id: payments.id,
+      paymentMethod: payments.paymentMethod,
+      amountSatang: payments.amountSatang,
+      receivedAt: payments.receivedAt,
+    })
+    .from(payments)
+    .where(and(gte(payments.receivedAt, startOfDay), lte(payments.receivedAt, endOfDay)));
+
+  let totalCashExpectedSatang = 0;
+  let totalPromptPaySatang = 0;
+  let totalOtherSatang = 0;
+
+  for (const p of paymentRows) {
+    if (p.paymentMethod === "CASH") {
+      totalCashExpectedSatang += p.amountSatang;
+    } else if (p.paymentMethod === "PROMPTPAY") {
+      totalPromptPaySatang += p.amountSatang;
+    } else {
+      totalOtherSatang += p.amountSatang;
+    }
+  }
+
+  const totalRevenueSatang = totalCashExpectedSatang + totalPromptPaySatang + totalOtherSatang;
+  const paidInvoicesCount = paymentRows.length;
+
+  const [unpaidSummary] = await db
+    .select({
+      unpaidCount: count(invoices.id),
+      unpaidSatang: sql<number>`coalesce(sum(${invoices.totalSatang}), 0)`,
+    })
+    .from(invoices)
+    .where(eq(invoices.status, "ISSUED"));
+
+  const [existingCloseout] = await db
+    .select()
+    .from(dailyCloseouts)
+    .where(eq(dailyCloseouts.closeoutDate, dateStr))
+    .limit(1);
+
+  return {
+    date: dateStr,
+    totalCashExpectedSatang,
+    totalPromptPaySatang,
+    totalOtherSatang,
+    totalRevenueSatang,
+    paidInvoicesCount,
+    unpaidInvoicesCount: Number(unpaidSummary?.unpaidCount ?? 0),
+    unpaidInvoicesSatang: Number(unpaidSummary?.unpaidSatang ?? 0),
+    closeout: existingCloseout ?? null,
+  };
+}
+
+export type SubmitDailyCloseoutInput = {
+  closeoutDate: string;
+  totalCashCountedSatang: number;
+  notes?: string | null;
+};
+
+export async function submitDailyCloseout(input: SubmitDailyCloseoutInput, userId: number, audit: AuditContext) {
+  const db = await requiredDb();
+  const summary = await getDailyCashierSummary(input.closeoutDate);
+  const cashDifferenceSatang = input.totalCashCountedSatang - summary.totalCashExpectedSatang;
+
+  return db.transaction(async tx => {
+    const [existing] = await tx.select({ id: dailyCloseouts.id }).from(dailyCloseouts).where(eq(dailyCloseouts.closeoutDate, summary.date)).limit(1);
+    let closeoutId: number;
+    const values = {
+      closeoutDate: summary.date,
+      closedBy: userId,
+      totalCashExpectedSatang: summary.totalCashExpectedSatang,
+      totalCashCountedSatang: input.totalCashCountedSatang,
+      cashDifferenceSatang,
+      totalPromptPaySatang: summary.totalPromptPaySatang,
+      totalOtherSatang: summary.totalOtherSatang,
+      totalRevenueSatang: summary.totalRevenueSatang,
+      totalInvoicesCount: summary.paidInvoicesCount,
+      notes: input.notes?.trim() || null,
+      closedAt: new Date(),
+    };
+
+    if (existing) {
+      await tx.update(dailyCloseouts).set(values).where(eq(dailyCloseouts.id, existing.id));
+      closeoutId = existing.id;
+    } else {
+      const result = await tx.insert(dailyCloseouts).values(values);
+      closeoutId = Number(result[0].insertId);
+    }
+
+    await tx.insert(auditEvents).values({
+      action: "DAILY_CLOSEOUT_RECORDED",
+      actorUserId: audit.actorUserId,
+      actorRole: audit.actorRole,
+      entityType: "DAILY_CLOSEOUT",
+      entityId: String(closeoutId),
+      outcome: "ALLOWED",
+      requestId: audit.requestId,
+      metadata: safeAuditMetadata({
+        closeoutDate: summary.date,
+        totalCashExpectedSatang: summary.totalCashExpectedSatang,
+        totalCashCountedSatang: input.totalCashCountedSatang,
+        cashDifferenceSatang,
+        totalRevenueSatang: summary.totalRevenueSatang,
+      }),
+    });
+
+    const [saved] = await tx.select().from(dailyCloseouts).where(eq(dailyCloseouts.id, closeoutId)).limit(1);
+    return saved!;
   });
 }
 
@@ -1125,6 +1471,32 @@ export async function getAggregateOperationsReport(range: AggregateReportRange) 
     .from(payments)
     .where(and(gte(payments.receivedAt, reportStart), lt(payments.receivedAt, reportEndExclusive)));
 
+  const paymentBreakdownRows = await db
+    .select({
+      paymentMethod: payments.paymentMethod,
+      totalSatang: sql<number>`coalesce(sum(${payments.amountSatang}), 0)`,
+    })
+    .from(payments)
+    .where(and(gte(payments.receivedAt, reportStart), lt(payments.receivedAt, reportEndExclusive)))
+    .groupBy(payments.paymentMethod);
+
+  let cashSatang = 0;
+  let promptPaySatang = 0;
+  let otherSatang = 0;
+  for (const row of paymentBreakdownRows) {
+    if (row.paymentMethod === "CASH") cashSatang = Number(row.totalSatang ?? 0);
+    else if (row.paymentMethod === "PROMPTPAY") promptPaySatang = Number(row.totalSatang ?? 0);
+    else otherSatang += Number(row.totalSatang ?? 0);
+  }
+
+  const [unpaidInvoicesSummary] = await db
+    .select({
+      unpaidCount: count(invoices.id),
+      unpaidSatang: sql<number>`coalesce(sum(${invoices.totalSatang}), 0)`,
+    })
+    .from(invoices)
+    .where(eq(invoices.status, "ISSUED"));
+
   const [dispenseSummary] = await db
     .select({ dispensedUnits: sql<number>`coalesce(sum(abs(${stockMovements.quantityDelta})), 0)` })
     .from(stockMovements)
@@ -1139,6 +1511,23 @@ export async function getAggregateOperationsReport(range: AggregateReportRange) 
     .from(inventoryLots)
     .where(gt(inventoryLots.remainingQuantity, 0));
 
+  const allActiveMeds = await db
+    .select({ id: medications.id, minStockThreshold: medications.minStockThreshold })
+    .from(medications)
+    .where(eq(medications.isActive, true));
+
+  const allLots = await db
+    .select({ medicationId: inventoryLots.medicationId, remainingQuantity: sql<number>`coalesce(sum(${inventoryLots.remainingQuantity}), 0)` })
+    .from(inventoryLots)
+    .groupBy(inventoryLots.medicationId);
+
+  const lotMap = new Map(allLots.map(l => [l.medicationId, Number(l.remainingQuantity ?? 0)]));
+  let lowStockMedicationsCount = 0;
+  for (const m of allActiveMeds) {
+    const onHand = lotMap.get(m.id) ?? 0;
+    if (onHand <= m.minStockThreshold) lowStockMedicationsCount++;
+  }
+
   const dailyVisitRows = await db
     .select({ day: visits.visitDate, visitCount: count(visits.id) })
     .from(visits)
@@ -1146,9 +1535,6 @@ export async function getAggregateOperationsReport(range: AggregateReportRange) 
     .groupBy(visits.visitDate)
     .orderBy(asc(visits.visitDate));
 
-  // Aggregate payment dates in application code. This avoids relying on a
-  // database-specific date() expression and fixes compatibility with TiDB.
-  // These rows stay server-side; the API response remains aggregate-only.
   const dailyRevenueRows = await db
     .select({ receivedAt: payments.receivedAt, amountSatang: payments.amountSatang })
     .from(payments)
@@ -1182,10 +1568,20 @@ export async function getAggregateOperationsReport(range: AggregateReportRange) 
       visitCount: Number(visitSummary?.visitCount ?? 0),
       paymentCount: Number(paymentSummary?.paymentCount ?? 0),
       paidSatang: Number(paymentSummary?.paidSatang ?? 0),
+      paymentMethodBreakdown: {
+        cashSatang,
+        promptPaySatang,
+        otherSatang,
+      },
+      unpaidInvoices: {
+        count: Number(unpaidInvoicesSummary?.unpaidCount ?? 0),
+        totalSatang: Number(unpaidInvoicesSummary?.unpaidSatang ?? 0),
+      },
       dispensedUnits: Number(dispenseSummary?.dispensedUnits ?? 0),
       activeLotCount: Number(stockSummary?.activeLotCount ?? 0),
       onHandUnits: Number(stockSummary?.onHandUnits ?? 0),
       expiringLotCount: Number(stockSummary?.expiringLotCount ?? 0),
+      lowStockMedicationsCount,
     },
     daily: days.map(day => ({ day, visitCount: visitsByDay.get(day) ?? 0, paidSatang: revenueByDay.get(day) ?? 0 })),
     topMedications: topMedicationRows.map(row => ({
@@ -1197,3 +1593,198 @@ export async function getAggregateOperationsReport(range: AggregateReportRange) 
     })),
   };
 }
+
+/**
+ * Returns past visits, triage records, clinical notes, diagnoses, and signed medication orders
+ * for a specific patient. Access is strictly limited to authorized doctors during consultation.
+ */
+export async function getPatientClinicalHistory(patientId: number) {
+  const db = await requiredDb();
+  const patient = await db
+    .select({
+      id: patients.id,
+      hn: patients.hn,
+      firstName: patients.firstName,
+      lastName: patients.lastName,
+      dateOfBirth: patients.dateOfBirth,
+      gender: patients.gender,
+      allergySummary: patients.allergySummary,
+    })
+    .from(patients)
+    .where(eq(patients.id, patientId))
+    .limit(1);
+
+  if (!patient[0]) throw new Error("PATIENT_NOT_FOUND");
+
+  const patientVisits = await db
+    .select({
+      id: visits.id,
+      visitDate: visits.visitDate,
+      chiefComplaint: visits.chiefComplaint,
+      status: visits.status,
+      createdAt: visits.createdAt,
+    })
+    .from(visits)
+    .where(eq(visits.patientId, patientId))
+    .orderBy(desc(visits.visitDate), desc(visits.createdAt))
+    .limit(25);
+
+  const history = await Promise.all(
+    patientVisits.map(async v => {
+      const [triage] = await db.select().from(triageRecords).where(eq(triageRecords.visitId, v.id)).limit(1);
+      const [note] = await db.select().from(clinicalNotes).where(eq(clinicalNotes.visitId, v.id)).limit(1);
+      const diagnoses = await db
+        .select({ id: visitDiagnoses.id, code: visitDiagnoses.code, display: visitDiagnoses.display, rank: visitDiagnoses.rank })
+        .from(visitDiagnoses)
+        .where(eq(visitDiagnoses.visitId, v.id))
+        .orderBy(asc(visitDiagnoses.rank));
+
+      const orders = await db
+        .select({
+          medicationNameSnapshot: medicationOrderItems.medicationNameSnapshot,
+          dosageFormSnapshot: medicationOrderItems.dosageFormSnapshot,
+          strengthSnapshot: medicationOrderItems.strengthSnapshot,
+          dose: medicationOrderItems.dose,
+          frequency: medicationOrderItems.frequency,
+          duration: medicationOrderItems.duration,
+          quantityPrescribed: medicationOrderItems.quantityPrescribed,
+          instructions: medicationOrderItems.instructions,
+        })
+        .from(clinicalOrders)
+        .innerJoin(medicationOrderItems, eq(medicationOrderItems.clinicalOrderId, clinicalOrders.id))
+        .where(and(eq(clinicalOrders.visitId, v.id), eq(clinicalOrders.status, "SIGNED")));
+
+      return {
+        visitId: v.id,
+        visitDate: v.visitDate,
+        chiefComplaint: v.chiefComplaint,
+        status: v.status,
+        createdAt: v.createdAt,
+        triage: triage
+          ? {
+              bloodPressureSystolic: triage.bloodPressureSystolic,
+              bloodPressureDiastolic: triage.bloodPressureDiastolic,
+              pulse: triage.pulse,
+              temperatureCelsius: triage.temperatureCelsius,
+              oxygenSaturation: triage.oxygenSaturation,
+              weightKg: triage.weightKg,
+              heightCm: triage.heightCm,
+              triageNote: triage.triageNote,
+              urgency: triage.urgency,
+            }
+          : null,
+        clinicalNote: note
+          ? {
+              subjective: note.subjective,
+              objective: note.objective,
+              assessment: note.assessment,
+              plan: note.plan,
+              status: note.status,
+              signedAt: note.signedAt,
+            }
+          : null,
+        diagnoses,
+        prescriptions: orders,
+      };
+    })
+  );
+
+  return {
+    patient: patient[0],
+    visits: history,
+  };
+}
+
+export type AuditLogFilter = {
+  limit?: number;
+  offset?: number;
+  action?: string | null;
+  actorRole?: "SYSTEM_ADMIN" | "DOCTOR" | "ASSISTANT" | null;
+  outcome?: "ALLOWED" | "DENIED" | "FAILED" | null;
+  startDate?: string | null;
+  endDate?: string | null;
+};
+
+/**
+ * Returns security audit logs for SYSTEM_ADMIN review.
+ * Strictly returns only audit metadata and actor username/role, never PHI or patient identity.
+ */
+export async function listAuditLogs(input: AuditLogFilter) {
+  const db = await requiredDb();
+  const limit = Math.min(input.limit ?? 50, 100);
+  const offset = input.offset ?? 0;
+
+  const conditions = [];
+  if (input.action && input.action.trim()) {
+    conditions.push(like(auditEvents.action, `%${input.action.trim()}%`));
+  }
+  if (input.actorRole) {
+    conditions.push(eq(auditEvents.actorRole, input.actorRole));
+  }
+  if (input.outcome) {
+    conditions.push(eq(auditEvents.outcome, input.outcome));
+  }
+  if (input.startDate && /^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) {
+    conditions.push(gte(auditEvents.occurredAt, new Date(`${input.startDate}T00:00:00.000Z`)));
+  }
+  if (input.endDate && /^\d{4}-\d{2}-\d{2}$/.test(input.endDate)) {
+    conditions.push(lte(auditEvents.occurredAt, new Date(`${input.endDate}T23:59:59.999Z`)));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const totalCountResult = await db
+    .select({ count: count() })
+    .from(auditEvents)
+    .where(whereClause);
+  const totalCount = Number(totalCountResult[0]?.count ?? 0);
+
+  const rows = await db
+    .select({
+      id: auditEvents.id,
+      action: auditEvents.action,
+      actorUserId: auditEvents.actorUserId,
+      actorRole: auditEvents.actorRole,
+      actorDisplayName: users.displayName,
+      actorUsername: users.username,
+      entityType: auditEvents.entityType,
+      entityId: auditEvents.entityId,
+      outcome: auditEvents.outcome,
+      requestId: auditEvents.requestId,
+      metadata: auditEvents.metadata,
+      occurredAt: auditEvents.occurredAt,
+    })
+    .from(auditEvents)
+    .leftJoin(users, eq(auditEvents.actorUserId, users.id))
+    .where(whereClause)
+    .orderBy(desc(auditEvents.occurredAt))
+    .limit(limit)
+    .offset(offset);
+
+  return {
+    items: rows,
+    totalCount,
+    limit,
+    offset,
+  };
+}
+
+/** Record an explicit audit trail event when reports CSV is exported. */
+export async function recordReportExportAudit(audit: AuditContext, reportType: string, dateRange: { from: string; to: string }) {
+  const db = await requiredDb();
+  await db.insert(auditEvents).values({
+    action: "REPORT_EXPORTED_CSV",
+    actorUserId: audit.actorUserId,
+    actorRole: audit.actorRole,
+    entityType: "REPORT",
+    entityId: reportType,
+    outcome: "ALLOWED",
+    requestId: audit.requestId,
+    metadata: safeAuditMetadata({
+      reportType,
+      from: dateRange.from,
+      to: dateRange.to,
+    }),
+  });
+}
+

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { callNextQueue, createPatient, createVisit, findPatientByHn, getPatientNationalIdStatus, listQueueByDate, recordPatientNationalId, searchPatients, upsertTriageRecord, type AuditContext } from "../db";
+import { callNextQueue, checkDuplicatePatients, createPatient, createVisit, findPatientByHn, getPatientNationalIdStatus, listQueueByDate, recordPatientNationalId, searchPatients, upsertTriageRecord, type AuditContext } from "../db";
 import { assistantProcedure, clinicalReadProcedure, doctorProcedure, router } from "../_core/trpc";
 
 const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "รูปแบบวันที่ต้องเป็น YYYY-MM-DD");
@@ -16,6 +16,7 @@ const patientInput = z.object({
   address: optionalText(5000),
   allergySummary: optionalText(1000),
   nationalId: optionalText(32),
+  consentAccepted: z.boolean().refine(val => val === true, { message: "กรุณายินยอมให้จัดเก็บและประมวลผลข้อมูลตามนโยบายความเป็นส่วนตัว (PDPA)" }),
 });
 
 const triageInput = z.object({
@@ -47,6 +48,15 @@ function throwMappedDomainError(error: unknown): never {
 }
 
 export const frontDeskRouter = router({
+  checkDuplicates: assistantProcedure
+    .input(
+      z.object({
+        firstName: z.string().trim().min(1),
+        lastName: z.string().trim().min(1),
+        dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+      })
+    )
+    .query(({ input }) => checkDuplicatePatients(input)),
   registerPatient: assistantProcedure.input(patientInput).mutation(async ({ ctx, input }) => {
     try {
       return await createPatient(input, auditFor(ctx.user));

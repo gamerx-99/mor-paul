@@ -7,29 +7,42 @@ const auth = vi.hoisted(() => ({ useAuth: vi.fn() }));
 const cashierApi = vi.hoisted(() => ({
   listQuery: vi.fn(),
   detailQuery: vi.fn(),
+  dailySummaryQuery: vi.fn(() => ({ data: null, isLoading: false })),
   addServiceMutation: vi.fn(),
   issueInvoiceMutation: vi.fn(),
   receivePaymentMutation: vi.fn(),
   dispenseMutation: vi.fn(),
+  submitDailyCloseoutMutation: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
   addServiceRun: vi.fn(),
   issueInvoiceRun: vi.fn(),
   receivePaymentRun: vi.fn(),
   invalidateList: vi.fn(),
   invalidateVisit: vi.fn(),
+  invalidateDailySummary: vi.fn(),
 }));
 
 vi.mock("@/_core/hooks/useAuth", () => auth);
 vi.mock("@/lib/trpc", () => ({
   trpc: {
-    useUtils: () => ({ pharmacy: { cashier: { listVisits: { invalidate: cashierApi.invalidateList }, getVisit: { invalidate: cashierApi.invalidateVisit } } } }),
+    useUtils: () => ({
+      pharmacy: {
+        cashier: {
+          listVisits: { invalidate: cashierApi.invalidateList },
+          getVisit: { invalidate: cashierApi.invalidateVisit },
+          getDailySummary: { invalidate: cashierApi.invalidateDailySummary },
+        },
+      },
+    }),
     pharmacy: {
       cashier: {
         listVisits: { useQuery: cashierApi.listQuery },
         getVisit: { useQuery: cashierApi.detailQuery },
+        getDailySummary: { useQuery: cashierApi.dailySummaryQuery },
         dispense: { useMutation: cashierApi.dispenseMutation },
         addServiceCharge: { useMutation: cashierApi.addServiceMutation },
         issueInvoice: { useMutation: cashierApi.issueInvoiceMutation },
         receivePayment: { useMutation: cashierApi.receivePaymentMutation },
+        submitDailyCloseout: { useMutation: cashierApi.submitDailyCloseoutMutation },
       },
     },
   },

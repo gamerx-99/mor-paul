@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { getDoctorConsultation, saveClinicalDraft, signClinicalEncounter, type AuditContext } from "../db";
+import { createClinicalPreset, deleteClinicalPreset, getDoctorConsultation, getPatientClinicalHistory, listClinicalPresets, saveClinicalDraft, signClinicalEncounter, type AuditContext } from "../db";
 import { doctorProcedure, router } from "../_core/trpc";
 
 const optionalClinicalText = (max: number) => z.string().trim().max(max).optional().transform(value => value || null);
@@ -29,6 +29,13 @@ const medicationOrderInput = z.object({
   instructions: z.string().trim().max(1000).optional().transform(value => value || null),
 });
 
+const presetInput = z.object({
+  name: z.string().trim().min(1, "กรุณาระบุชื่อชุดคำสั่งด่วน").max(120),
+  description: z.string().trim().max(500).optional().transform(value => value || null),
+  diagnoses: z.array(diagnosisInput).max(12).default([]),
+  medications: z.array(medicationOrderInput).max(20).default([]),
+});
+
 function auditFor(user: { id: number; role: AuditContext["actorRole"] }): AuditContext {
   return { actorUserId: user.id, actorRole: user.role, requestId: randomUUID() };
 }
@@ -42,6 +49,8 @@ function throwMappedClinicalError(error: unknown): never {
   if (code === "STALE_CLINICAL_NOTE" || code === "STALE_VISIT") throw new TRPCError({ code: "CONFLICT", message: "ข้อมูลถูกแก้ไขจากหน้าจออื่น กรุณาโหลดใหม่ก่อนบันทึก" });
   if (code === "MEDICATION_NOT_FOUND_OR_INACTIVE") throw new TRPCError({ code: "BAD_REQUEST", message: "ไม่พบยา หรือยานี้ถูกปิดใช้งาน" });
   if (code === "DUPLICATE_MEDICATION_ORDER_ITEM") throw new TRPCError({ code: "BAD_REQUEST", message: "ไม่สามารถสั่งยารายการเดิมซ้ำในคำสั่งเดียวกัน" });
+  if (code === "PATIENT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "ไม่พบผู้รับบริการ" });
+  if (code === "PRESET_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "ไม่พบชุดคำสั่งด่วนนี้" });
   throw error;
 }
 
@@ -49,6 +58,13 @@ export const doctorConsoleRouter = router({
   getConsultation: doctorProcedure.input(z.object({ visitId: z.number().int().positive() })).query(async ({ ctx, input }) => {
     try {
       return await getDoctorConsultation(input.visitId, ctx.user.id);
+    } catch (error) {
+      throwMappedClinicalError(error);
+    }
+  }),
+  getPatientHistory: doctorProcedure.input(z.object({ patientId: z.number().int().positive() })).query(async ({ input }) => {
+    try {
+      return await getPatientClinicalHistory(input.patientId);
     } catch (error) {
       throwMappedClinicalError(error);
     }
@@ -67,4 +83,26 @@ export const doctorConsoleRouter = router({
       throwMappedClinicalError(error);
     }
   }),
+  listPresets: doctorProcedure.query(async ({ ctx }) => {
+    try {
+      return await listClinicalPresets(ctx.user.id);
+    } catch (error) {
+      throwMappedClinicalError(error);
+    }
+  }),
+  createPreset: doctorProcedure.input(presetInput).mutation(async ({ ctx, input }) => {
+    try {
+      return await createClinicalPreset(input, ctx.user.id, auditFor(ctx.user));
+    } catch (error) {
+      throwMappedClinicalError(error);
+    }
+  }),
+  deletePreset: doctorProcedure.input(z.object({ presetId: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    try {
+      return await deleteClinicalPreset(input.presetId, ctx.user.id, auditFor(ctx.user));
+    } catch (error) {
+      throwMappedClinicalError(error);
+    }
+  }),
 });
+

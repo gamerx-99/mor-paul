@@ -14,6 +14,7 @@ import MedicationCatalog from "./pages/MedicationCatalog";
 import QueueBoard from "./pages/QueueBoard";
 import Reports from "./pages/Reports";
 import StaffManagement from "./pages/StaffManagement";
+import AuditLogs from "./pages/AuditLogs";
 import SessionExpiryBoundary from "./components/SessionExpiryBoundary";
 
 function ClinicalPage({ children }: { children: React.ReactNode }) {
@@ -31,6 +32,7 @@ function Router() {
     <Route path="/medications" component={() => <ClinicalPage><MedicationCatalog /></ClinicalPage>} />
     <Route path="/reports" component={() => <ClinicalPage><Reports /></ClinicalPage>} />
     <Route path="/staff" component={() => <ClinicalPage><StaffManagement /></ClinicalPage>} />
+    <Route path="/audit-logs" component={() => <ClinicalPage><AuditLogs /></ClinicalPage>} />
     <Route path="/404" component={NotFound} />
     <Route component={NotFound} />
   </Switch>;
@@ -41,3 +43,4 @@ function App() {
 }
 
 export default App;
+
