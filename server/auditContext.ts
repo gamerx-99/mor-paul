@@ -8,7 +8,7 @@ export interface AuditSpec {
 }
 
 export async function withAudit<TInput, TOutput extends { id: number | string }>(
-  spec: AuditSpec,
+  spec: AuditSpec & { input?: TInput },
   handler: (input: TInput) => Promise<TOutput>,
   recordEvent: (ctx: {
     actorUserId: number;
@@ -21,7 +21,7 @@ export async function withAudit<TInput, TOutput extends { id: number | string }>
     metadata?: string;
   }) => Promise<void>,
 ): Promise<TOutput> {
-  const result = await handler(spec.action);
+  const result = await handler((spec as { input: TInput }).input);
   await recordEvent({
     actorUserId: spec.actor.userId,
     actorRole: spec.actor.role,

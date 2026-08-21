@@ -1001,12 +1001,14 @@ export async function deactivateSoapTemplate(templateId: number, audit: AuditCon
     return { id: templateId };
   });
 }
+
+export interface MedicationRow {
   code: string;
   genericName: string;
   tradeName?: string | null;
   dosageForm: string;
   strength: string;
-};
+}
 
 export async function listActiveMedications(query?: string) {
   const db = await requiredDb();
@@ -1067,6 +1069,16 @@ export async function updateMedicationMinStockThreshold(input: { medicationId: n
     });
     return { medicationId: input.medicationId, minStockThreshold: input.minStockThreshold };
   });
+}
+
+export interface MedicationCatalogInput {
+  code: string;
+  genericName: string;
+  tradeName?: string | null;
+  dosageForm: string;
+  strength: string;
+  minStockThreshold?: number;
+  isActive?: boolean;
 }
 
 export async function createMedicationCatalogItem(input: MedicationCatalogInput, audit: AuditContext) {

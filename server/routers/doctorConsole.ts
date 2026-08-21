@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { createClinicalPreset, deleteClinicalPreset, getDoctorConsultation, getPatientClinicalHistory, listClinicalPresets, saveClinicalDraft, signClinicalEncounter, type AuditContext } from "../db";
+import { createClinicalPreset, deleteClinicalPreset, getDoctorConsultation, getPatientClinicalHistory, listClinicalPresets, listSoapTemplates, createSoapTemplate, updateSoapTemplate, deactivateSoapTemplate, saveClinicalDraft, signClinicalEncounter, type AuditContext } from "../db";
 import { doctorProcedure, router } from "../_core/trpc";
 
 const optionalClinicalText = (max: number) => z.string().trim().max(max).optional().transform(value => value || null);

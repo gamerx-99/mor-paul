@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import MedicalCertificatePrint from "@/components/documents/MedicalCertificatePrint";
 import MedicationLabelPrint from "@/components/documents/MedicationLabelPrint";
+import SOAPTemplateManager from "@/components/SOAPTemplateManager";
 import { trpc } from "@/lib/trpc";
 import { AccessDenied } from "@/pages/FrontDesk";
 import { searchIcd10, type Icd10Entry } from "@shared/icd10-data";
