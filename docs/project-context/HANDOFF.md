@@ -31,7 +31,7 @@
 - 1 logical change ต่อ 1 commit
 - ห้าม push จนผ่าน 3 gates: code review / system green / PDPA check
 
-## Contact
-
-- Telegram: @gamexoo9
-- Approved users: 5581598534 (iGAMER), 8954478714 (@botstopG)
+## Contact & Approvals
+ 
+- Escalation: Clinic System Admin (Internal Escalation)
+- Operations Sign-off: Designated Clinic Lead Approver

@@ -237,7 +237,7 @@ export async function createStaffAccount(input: StaffAccountInput, audit: AuditC
       passwordHash: input.passwordHash,
       role: input.role,
       mustChangePassword: false,
-    });
+    }).returning({ id: users.id });
     const userId = Number(getInsertId(result));
     await tx.insert(auditEvents).values({
       action: "STAFF_ACCOUNT_CREATED",
@@ -389,7 +389,7 @@ export async function createPatient(input: PatientRegistrationInput, audit: Audi
       nationalIdLookupHash: normalizedNationalId ? nationalIdLookupHash(normalizedNationalId) : null,
       nationalIdSetAt: normalizedNationalId ? new Date() : null,
       nationalIdSetBy: normalizedNationalId ? audit.actorUserId : null,
-    });
+    }).returning({ id: patients.id });
     const patientId = Number(getInsertId(result));
     const hn = `HN${String(patientId).padStart(8, "0")}`;
     await tx.update(patients).set({ hn }).where(eq(patients.id, patientId));
@@ -499,9 +499,9 @@ export async function createVisit(input: { patientId: number; visitDate: string;
       visitDate,
       chiefComplaint: input.chiefComplaint,
       createdBy: audit.actorUserId,
-    });
+    }).returning({ id: visits.id });
     const visitId = Number(getInsertId(visitResult));
-    const queueResult = await tx.insert(queueEntries).values({ visitId, queueDate: visitDate, queueNumber: visitId });
+    const queueResult = await tx.insert(queueEntries).values({ visitId, queueDate: visitDate, queueNumber: visitId }).returning({ id: queueEntries.id });
     const queueId = Number(getInsertId(queueResult));
     await tx.insert(auditEvents).values({
       action: "VISIT_CREATED",
@@ -584,7 +584,7 @@ export async function upsertTriageRecord(input: TriageInput, audit: AuditContext
       action = "TRIAGE_UPDATED";
       await tx.update(triageRecords).set(values).where(eq(triageRecords.id, triageId));
     } else {
-      const result = await tx.insert(triageRecords).values(values);
+      const result = await tx.insert(triageRecords).values(values).returning({ id: triageRecords.id });
       triageId = Number(getInsertId(result));
       action = "TRIAGE_RECORDED";
     }
@@ -715,7 +715,7 @@ export async function saveClinicalDraft(input: ClinicalDraftInput, doctorId: num
     let revision: number;
     if (!existing) {
       if (input.expectedRevision !== 0) throw new Error("STALE_CLINICAL_NOTE");
-      const result = await tx.insert(clinicalNotes).values({ visitId: input.visitId, ...fields, status: "DRAFT", revision: 1, authoredBy: doctorId });
+      const result = await tx.insert(clinicalNotes).values({ visitId: input.visitId, ...fields, status: "DRAFT", revision: 1, authoredBy: doctorId }).returning({ id: clinicalNotes.id });
       noteId = Number(getInsertId(result));
       revision = 1;
     } else {
@@ -753,7 +753,7 @@ export async function signClinicalEncounter(input: SignClinicalEncounterInput, d
     let revision: number;
     if (!existing) {
       if (input.expectedRevision !== 0) throw new Error("STALE_CLINICAL_NOTE");
-      const result = await tx.insert(clinicalNotes).values({ visitId: input.visitId, ...fields, status: "SIGNED", revision: 1, authoredBy: doctorId, signedAt: now });
+      const result = await tx.insert(clinicalNotes).values({ visitId: input.visitId, ...fields, status: "SIGNED", revision: 1, authoredBy: doctorId, signedAt: now }).returning({ id: clinicalNotes.id });
       noteId = Number(getInsertId(result));
       revision = 1;
     } else {
@@ -776,7 +776,7 @@ export async function signClinicalEncounter(input: SignClinicalEncounterInput, d
         if (!medication) throw new Error("MEDICATION_NOT_FOUND_OR_INACTIVE");
         return { item, medication };
       }));
-      const orderResult = await tx.insert(clinicalOrders).values({ visitId: input.visitId, status: "SIGNED", createdBy: doctorId, signedBy: doctorId, signedAt: now, signRequestId: audit.requestId });
+      const orderResult = await tx.insert(clinicalOrders).values({ visitId: input.visitId, status: "SIGNED", createdBy: doctorId, signedBy: doctorId, signedAt: now, signRequestId: audit.requestId }).returning({ id: clinicalOrders.id });
       clinicalOrderId = Number(getInsertId(orderResult));
       await tx.insert(medicationOrderItems).values(selectedMedications.map(({ item, medication }) => ({
         clinicalOrderId: clinicalOrderId!,
@@ -872,7 +872,7 @@ export async function createClinicalPreset(input: ClinicalPresetInput, doctorId:
       description: input.description?.trim() || null,
       diagnosesJson: JSON.stringify(input.diagnoses),
       medicationsJson: JSON.stringify(input.medications),
-    });
+    }).returning({ id: clinicalPresets.id });
     const presetId = Number(getInsertId(result));
     await tx.insert(auditEvents).values({
       action: "CLINICAL_PRESET_CREATED",
@@ -939,7 +939,7 @@ export async function createSoapTemplate(input: {
       assessmentTemplate: input.assessmentTemplate,
       planTemplate: input.planTemplate,
       createdBy: input.createdBy,
-    });
+    }).returning({ id: soapTemplates.id });
     const templateId = Number(getInsertId(result));
     await tx.insert(auditEvents).values({
       action: "SOAP_TEMPLATE_CREATED",
@@ -1084,7 +1084,7 @@ export interface MedicationCatalogInput {
 export async function createMedicationCatalogItem(input: MedicationCatalogInput, audit: AuditContext) {
   const db = await requiredDb();
   return db.transaction(async tx => {
-    const result = await tx.insert(medications).values({ ...input, code: input.code.trim().toUpperCase(), tradeName: input.tradeName ?? null, createdBy: audit.actorUserId });
+    const result = await tx.insert(medications).values({ ...input, code: input.code.trim().toUpperCase(), tradeName: input.tradeName ?? null, createdBy: audit.actorUserId }).returning({ id: medications.id });
     const medicationId = Number(getInsertId(result));
     await tx.insert(auditEvents).values({
       action: "MEDICATION_CATALOG_CREATED", actorUserId: audit.actorUserId, actorRole: audit.actorRole, entityType: "MEDICATION", entityId: String(medicationId), outcome: "ALLOWED", requestId: audit.requestId,
@@ -1103,7 +1103,7 @@ export async function setMedicationUnitPrice(input: { medicationId: number; unit
     if (!medication) throw new Error("MEDICATION_NOT_FOUND");
     const now = new Date();
     await tx.update(medicationPrices).set({ isActive: false, effectiveTo: now }).where(and(eq(medicationPrices.medicationId, input.medicationId), eq(medicationPrices.isActive, true)));
-    const result = await tx.insert(medicationPrices).values({ medicationId: input.medicationId, unitPriceSatang: input.unitPriceSatang, effectiveFrom: now, isActive: true, createdBy: audit.actorUserId });
+    const result = await tx.insert(medicationPrices).values({ medicationId: input.medicationId, unitPriceSatang: input.unitPriceSatang, effectiveFrom: now, isActive: true, createdBy: audit.actorUserId }).returning({ id: medicationPrices.id });
     const priceId = Number(getInsertId(result));
     await tx.insert(auditEvents).values({
       action: "MEDICATION_PRICE_SET", actorUserId: audit.actorUserId, actorRole: audit.actorRole, entityType: "MEDICATION_PRICE", entityId: String(priceId), outcome: "ALLOWED", requestId: audit.requestId,
@@ -1146,7 +1146,7 @@ export async function bulkImportMedicationCatalog(rows: BulkMedicationCatalogImp
         dosageForm: row.dosageForm,
         strength: row.strength,
         createdBy: audit.actorUserId,
-      });
+      }).returning({ id: medications.id });
       const medicationId = Number(getInsertId(medicationResult));
       medicationIds.push(medicationId);
       await tx.insert(medicationPrices).values({
@@ -1178,9 +1178,9 @@ export async function receiveInventoryLot(input: { medicationId: number; lotNumb
     if (existingMovement) return { inventoryLotId: existingMovement.inventoryLotId, movementId: existingMovement.id, replayed: true };
     const [medication] = await tx.select({ id: medications.id }).from(medications).where(eq(medications.id, input.medicationId)).limit(1);
     if (!medication) throw new Error("MEDICATION_NOT_FOUND");
-    const result = await tx.insert(inventoryLots).values({ medicationId: input.medicationId, lotNumber: input.lotNumber.trim(), expiryDate: validateDateOnly(input.expiryDate), receivedQuantity: input.quantity, remainingQuantity: input.quantity, receivedBy: audit.actorUserId });
+    const result = await tx.insert(inventoryLots).values({ medicationId: input.medicationId, lotNumber: input.lotNumber.trim(), expiryDate: validateDateOnly(input.expiryDate), receivedQuantity: input.quantity, remainingQuantity: input.quantity, receivedBy: audit.actorUserId }).returning({ id: inventoryLots.id });
     const inventoryLotId = Number(getInsertId(result));
-    const movement = await tx.insert(stockMovements).values({ inventoryLotId, movementType: "RECEIVE", quantityDelta: input.quantity, referenceType: "INVENTORY_LOT", referenceId: String(inventoryLotId), idempotencyKey: input.idempotencyKey, performedBy: audit.actorUserId });
+    const movement = await tx.insert(stockMovements).values({ inventoryLotId, movementType: "RECEIVE", quantityDelta: input.quantity, referenceType: "INVENTORY_LOT", referenceId: String(inventoryLotId), idempotencyKey: input.idempotencyKey, performedBy: audit.actorUserId }).returning({ id: stockMovements.id });
     const movementId = Number(getInsertId(movement));
     await tx.insert(auditEvents).values({
       action: "INVENTORY_LOT_RECEIVED", actorUserId: audit.actorUserId, actorRole: audit.actorRole, entityType: "INVENTORY_LOT", entityId: String(inventoryLotId), outcome: "ALLOWED", requestId: audit.requestId,
@@ -1264,7 +1264,7 @@ export async function addServiceCharge(input: ServiceChargeInput, assistantId: n
       quantity: input.quantity,
       unitPriceSatang: input.unitPriceSatang,
       createdBy: assistantId,
-    });
+    }).returning({ id: serviceCharges.id });
     const serviceChargeId = Number(getInsertId(result));
     await tx.insert(auditEvents).values({
       action: "SERVICE_CHARGE_ADDED",
@@ -1309,7 +1309,7 @@ export async function issueVisitInvoice(input: IssueInvoiceInput, assistantId: n
       invoiceNumber = existingInvoice.invoiceNumber;
     } else {
       invoiceNumber = `INV-${String(input.visitId).padStart(8, "0")}`;
-      const created = await tx.insert(invoices).values({ visitId: input.visitId, invoiceNumber, status: "DRAFT", subtotalSatang: 0, discountSatang: 0, totalSatang: 0, issuedBy: assistantId });
+      const created = await tx.insert(invoices).values({ visitId: input.visitId, invoiceNumber, status: "DRAFT", subtotalSatang: 0, discountSatang: 0, totalSatang: 0, issuedBy: assistantId }).returning({ id: invoices.id });
       invoiceId = Number(getInsertId(created));
     }
 
@@ -1383,7 +1383,7 @@ export async function dispenseSignedOrder(input: { visitId: number; idempotencyK
       if (!price) throw new Error("ACTIVE_MEDICATION_PRICE_NOT_FOUND");
       return { item, lot, price };
     }));
-    const dispenseResult = await tx.insert(dispensations).values({ visitId: input.visitId, clinicalOrderId: order.id, status: "PENDING", requestId: input.idempotencyKey });
+    const dispenseResult = await tx.insert(dispensations).values({ visitId: input.visitId, clinicalOrderId: order.id, status: "PENDING", requestId: input.idempotencyKey }).returning({ id: dispensations.id });
     const dispensationId = Number(getInsertId(dispenseResult));
     for (const allocationItem of allocation) {
       const updateLot = await tx.update(inventoryLots).set({ remainingQuantity: allocationItem.lot.remainingQuantity - allocationItem.item.quantityPrescribed }).where(and(eq(inventoryLots.id, allocationItem.lot.id), gte(inventoryLots.remainingQuantity, allocationItem.item.quantityPrescribed)));
@@ -1392,7 +1392,7 @@ export async function dispenseSignedOrder(input: { visitId: number; idempotencyK
     await tx.insert(dispensationItems).values(allocation.map(({ item, lot }) => ({ dispensationId, medicationOrderItemId: item.id, inventoryLotId: lot.id, quantityDispensed: item.quantityPrescribed })));
     await tx.insert(stockMovements).values(allocation.map(({ item, lot }, index) => ({ inventoryLotId: lot.id, movementType: "DISPENSE" as const, quantityDelta: -item.quantityPrescribed, referenceType: "DISPENSATION", referenceId: String(dispensationId), idempotencyKey: `${input.idempotencyKey}:${index}`, performedBy: assistantId })));
     const totalSatang = allocation.reduce((sum, entry) => sum + entry.item.quantityPrescribed * entry.price.unitPriceSatang, 0);
-    const invoiceResult = await tx.insert(invoices).values({ visitId: input.visitId, invoiceNumber: `INV-${String(input.visitId).padStart(8, "0")}`, status: "DRAFT", subtotalSatang: totalSatang, discountSatang: 0, totalSatang, issuedBy: assistantId });
+    const invoiceResult = await tx.insert(invoices).values({ visitId: input.visitId, invoiceNumber: `INV-${String(input.visitId).padStart(8, "0")}`, status: "DRAFT", subtotalSatang: totalSatang, discountSatang: 0, totalSatang, issuedBy: assistantId }).returning({ id: invoices.id });
     const invoiceId = Number(getInsertId(invoiceResult));
     await tx.insert(invoiceLines).values(allocation.map(({ item, price }) => ({ invoiceId, sourceType: "MEDICATION_ORDER_ITEM", sourceId: String(item.id), descriptionSnapshot: `${item.medicationNameSnapshot} ${item.strengthSnapshot}`, quantity: item.quantityPrescribed, unitPriceSatang: price.unitPriceSatang, lineTotalSatang: item.quantityPrescribed * price.unitPriceSatang })));
     await tx.update(dispensations).set({ status: "COMPLETED", dispensedBy: assistantId, completedAt: now }).where(eq(dispensations.id, dispensationId));
@@ -1433,7 +1433,7 @@ export async function receiveInvoicePayment(input: ReceivePaymentInput, assistan
       idempotencyKey: input.idempotencyKey,
       receivedBy: assistantId,
       receivedAt: now,
-    });
+    }).returning({ id: payments.id });
     const paymentId = Number(getInsertId(result));
     const invoiceUpdate = await tx.update(invoices).set({ status: "PAID", paidAt: now }).where(and(eq(invoices.id, input.invoiceId), eq(invoices.status, "ISSUED")));
     if (Number(getAffectedRows(invoiceUpdate)) !== 1) throw new Error("INVOICE_NOT_READY_FOR_PAYMENT");
@@ -1539,7 +1539,7 @@ export async function submitDailyCloseout(input: SubmitDailyCloseoutInput, userI
       await tx.update(dailyCloseouts).set(values).where(eq(dailyCloseouts.id, existing.id));
       closeoutId = existing.id;
     } else {
-      const result = await tx.insert(dailyCloseouts).values(values);
+      const result = await tx.insert(dailyCloseouts).values(values).returning({ id: dailyCloseouts.id });
       closeoutId = Number(getInsertId(result));
     }
 

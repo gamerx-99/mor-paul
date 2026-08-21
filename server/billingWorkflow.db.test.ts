@@ -37,11 +37,17 @@ function queryFor(result: unknown[]) {
 
 const tx = {
   select: vi.fn(() => ({ from: vi.fn(() => queryFor(selectResults.shift() ?? [])) })),
-  insert: vi.fn(() => ({ values: vi.fn(async (values: unknown) => {
-    insertCalls.push({ values });
-    nextInsertId += 1;
-    return [{ insertId: nextInsertId }];
-  }) })),
+  insert: vi.fn(() => ({
+    values: vi.fn((values: unknown) => {
+      insertCalls.push({ values });
+      nextInsertId += 1;
+      const rows = [{ id: nextInsertId, insertId: nextInsertId }];
+      return {
+        returning: vi.fn(async () => rows),
+        then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve(rows).then(resolve, reject),
+      };
+    }),
+  })),
   update: vi.fn(() => ({ set: vi.fn((values: Record<string, unknown>) => ({ where: vi.fn(async () => {
     updateCalls.push({ values });
     return [{ affectedRows: 1 }];

@@ -62,9 +62,9 @@ Env vars: ดู `docs/DEPLOY_SUPABASE_VERCEL.md`
 - [ ] Backup/download test สำเร็จ
 - [ ] Incident roles แต่งตั้ง + เก็บหลักฐาน
 
-## 7. Contact
+## 7. Contact & Escalation
 
-|  |  |
+| Role | Channel |
 |---|---|
-| Telegram | @gamexoo9 (กอง approves) |
-| User  approved | 5581598534 (iGAMER), 8954478714 (@botstopG) |
+| Incident Commander | Clinic System Admin (Internal Escalation) |
+| Security & Approval | Designated Clinic Lead Approver |

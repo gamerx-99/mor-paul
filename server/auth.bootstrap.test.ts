@@ -38,7 +38,7 @@ describe("auth.bootstrap", () => {
     database.recordLoginSuccess.mockResolvedValue(undefined);
   });
 
-  it("accepts valid credentials without setupKey during the test", async () => {
+  it("accepts valid credentials with valid setupKey", async () => {
     const cookie = vi.fn();
     const caller = appRouter.createCaller({
       user: null,
@@ -50,11 +50,48 @@ describe("auth.bootstrap", () => {
       username: "clinic-admin",
       password: "sufficiently-long-test-password",
       displayName: "ผู้ดูแลคลินิก",
+      setupKey: "test-setup-key-with-sufficient-length",
     });
 
     expect(result).toMatchObject({ username: "clinic-admin", role: "SYSTEM_ADMIN" });
     expect(database.createInitialAdmin).toHaveBeenCalledOnce();
     expect(database.createSession).toHaveBeenCalledOnce();
     expect(cookie).toHaveBeenCalledOnce();
+  });
+
+  it("rejects invalid setupKey with FORBIDDEN", async () => {
+    const caller = appRouter.createCaller({
+      user: null,
+      req: { secure: true, headers: {} },
+      res: { cookie: vi.fn(), clearCookie: vi.fn() },
+    } as never);
+
+    await expect(
+      caller.auth.bootstrap({
+        username: "clinic-admin",
+        password: "sufficiently-long-test-password",
+        displayName: "ผู้ดูแลคลินิก",
+        setupKey: "wrong-setup-key-that-is-long-enough",
+      })
+    ).rejects.toThrow("รหัสตั้งค่าระบบไม่ถูกต้อง");
+    expect(database.createInitialAdmin).not.toHaveBeenCalled();
+  });
+
+  it("rejects when bootstrap is closed with CONFLICT", async () => {
+    database.createInitialAdmin.mockRejectedValue(new Error("BOOTSTRAP_CLOSED"));
+    const caller = appRouter.createCaller({
+      user: null,
+      req: { secure: true, headers: {} },
+      res: { cookie: vi.fn(), clearCookie: vi.fn() },
+    } as never);
+
+    await expect(
+      caller.auth.bootstrap({
+        username: "clinic-admin",
+        password: "sufficiently-long-test-password",
+        displayName: "ผู้ดูแลคลินิก",
+        setupKey: "test-setup-key-with-sufficient-length",
+      })
+    ).rejects.toThrow("ระบบมีบัญชีผู้ดูแลแล้ว");
   });
 });

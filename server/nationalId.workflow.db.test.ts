@@ -35,10 +35,16 @@ const tx = {
     updateCalls.push(values);
     return [{ affectedRows: 1 }];
   }) })) })),
-  insert: vi.fn(() => ({ values: vi.fn(async (values: Record<string, unknown>) => {
-    auditEvents.push(values);
-    return [{ insertId: 1 }];
-  }) })),
+  insert: vi.fn(() => ({
+    values: vi.fn((values: Record<string, unknown>) => {
+      auditEvents.push(values);
+      const rows = [{ id: 1, insertId: 1 }];
+      return {
+        returning: vi.fn(async () => rows),
+        then: (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => Promise.resolve(rows).then(resolve, reject),
+      };
+    }),
+  })),
 };
 
 const db = { transaction: vi.fn(async (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx)) };
