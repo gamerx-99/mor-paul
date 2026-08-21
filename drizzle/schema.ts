@@ -358,6 +358,22 @@ export const clinicalPresets = pgTable("clinicalPresets", {
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdate(() => new Date()).notNull(),
 }, table => [index("clinical_presets_doctor_idx").on(table.doctorId)]);
 
+export const soapTemplates = pgTable("soapTemplates", {
+  id: serial("id").primaryKey(),
+  serviceType: varchar("serviceType", { length: 40 }).notNull(),
+  name: varchar("name", { length: 120 }).notNull(),
+  subjectiveTemplate: text("subjectiveTemplate").notNull(),
+  objectiveTemplate: text("objectiveTemplate").notNull(),
+  assessmentTemplate: text("assessmentTemplate").notNull(),
+  planTemplate: text("planTemplate").notNull(),
+  isActive: boolean("isActive").notNull().default(true),
+  createdBy: integer("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().$onUpdate(() => new Date()).notNull(),
+}, table => [
+  index("soap_templates_service_idx").on(table.serviceType, table.isActive),
+]);
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type Patient = typeof patients.$inferSelect;
