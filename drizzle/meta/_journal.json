@@ -43,6 +43,13 @@
       "when": 1787221550855,
       "tag": "0005_burly_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787273245182,
+      "tag": "0006_loud_vanisher",
+      "breakpoints": true
     }
   ]
 }
