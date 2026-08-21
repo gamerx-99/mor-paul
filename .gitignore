@@ -33,6 +33,18 @@ build/
 ehthumbs.db
 Thumbs.db
 
+# Hermes agent plans
+.hermes/
+
+# Database export artifacts
+database-export/
+
+# Drizzle generated metadata
+drizzle/meta/
+
+# Supabase CLI temp
+supabase/.temp/
+
 # Logs
 logs
 *.log
