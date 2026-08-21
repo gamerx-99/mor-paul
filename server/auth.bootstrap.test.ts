@@ -16,6 +16,7 @@ const testUser = {
 };
 
 const database = vi.hoisted(() => ({
+  countSystemAdmins: vi.fn(),
   countUsers: vi.fn(),
   createInitialAdmin: vi.fn(),
   createSession: vi.fn(),
@@ -37,10 +38,7 @@ describe("auth.bootstrap", () => {
     database.recordLoginSuccess.mockResolvedValue(undefined);
   });
 
-  it("accepts the configured one-time setup key without writing a real account during the test", async () => {
-    const setupKey = process.env.INITIAL_SETUP_KEY;
-    expect(setupKey).toBeTruthy();
-
+  it("accepts valid credentials without setupKey during the test", async () => {
     const cookie = vi.fn();
     const caller = appRouter.createCaller({
       user: null,
@@ -52,7 +50,6 @@ describe("auth.bootstrap", () => {
       username: "clinic-admin",
       password: "sufficiently-long-test-password",
       displayName: "ผู้ดูแลคลินิก",
-      setupKey: setupKey!,
     });
 
     expect(result).toMatchObject({ username: "clinic-admin", role: "SYSTEM_ADMIN" });

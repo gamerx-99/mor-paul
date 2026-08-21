@@ -3,8 +3,8 @@ import { isValidThaiNationalId, maskThaiNationalId, normalizeThaiNationalId } fr
 
 const drizzleFactory = vi.hoisted(() => vi.fn());
 
-vi.mock("drizzle-orm/mysql2", async () => {
-  const actual = await vi.importActual<typeof import("drizzle-orm/mysql2")>("drizzle-orm/mysql2");
+vi.mock("drizzle-orm/postgres-js", async () => {
+  const actual = await vi.importActual<typeof import("drizzle-orm/postgres-js")>("drizzle-orm/postgres-js");
   return { ...actual, drizzle: drizzleFactory };
 });
 
