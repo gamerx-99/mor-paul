@@ -19,6 +19,10 @@ const database = vi.hoisted(() => ({
   createStaffAccount: vi.fn(),
   setStaffAccountActive: vi.fn(),
   updateStaffRole: vi.fn(),
+  listSoapTemplates: vi.fn(),
+  createSoapTemplate: vi.fn(),
+  updateSoapTemplate: vi.fn(),
+  deactivateSoapTemplate: vi.fn(),
 }));
 
 vi.mock("./db", () => database);
@@ -110,6 +114,62 @@ describe("doctor console RBAC", () => {
     await expect(callerFor(doctor).doctorConsole.listPresets()).resolves.toEqual([{ id: 1, name: "ชุดไข้หวัด", diagnoses: [], medications: [] }]);
     await expect(callerFor(doctor).doctorConsole.createPreset({ name: "ชุดแผลสด", diagnoses: [], medications: [] })).resolves.toEqual({ id: 2, name: "ชุดแผลสด" });
     await expect(callerFor(doctor).doctorConsole.deletePreset({ presetId: 1 })).resolves.toEqual({ id: 1, success: true });
+  });
+
+  it("denies non-doctors from reading or managing SOAP templates", async () => {
+    for (const user of [assistant, admin]) {
+      await expect(callerFor(user).doctorConsole.listSoapTemplates({ serviceType: "general" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(callerFor(user).doctorConsole.createSoapTemplate({
+        serviceType: "general",
+        name: "Common cold",
+        subjectiveTemplate: "CC: ___",
+        objectiveTemplate: "PE: ___",
+        assessmentTemplate: "Dx: ___",
+        planTemplate: "Rx: ___",
+      })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(callerFor(user).doctorConsole.updateSoapTemplate({ id: 1, name: "Updated" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(callerFor(user).doctorConsole.deactivateSoapTemplate({ id: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    }
+    expect(database.listSoapTemplates).not.toHaveBeenCalled();
+    expect(database.createSoapTemplate).not.toHaveBeenCalled();
+    expect(database.updateSoapTemplate).not.toHaveBeenCalled();
+    expect(database.deactivateSoapTemplate).not.toHaveBeenCalled();
+  });
+
+  it("allows a doctor to list active templates filtered by service type", async () => {
+    database.listSoapTemplates.mockResolvedValue([{ id: 1, serviceType: "general", name: "Common cold" }]);
+    await expect(callerFor(doctor).doctorConsole.listSoapTemplates({ serviceType: "general" })).resolves.toEqual([
+      { id: 1, serviceType: "general", name: "Common cold" },
+    ]);
+    expect(database.listSoapTemplates).toHaveBeenCalledWith({ serviceType: "general" });
+  });
+
+  it("allows a doctor to create a SOAP template with audit context and no PHI in the payload", async () => {
+    database.createSoapTemplate.mockResolvedValue({ id: 5 });
+    const input = {
+      serviceType: "general" as const,
+      name: "Common cold",
+      subjectiveTemplate: "CC: ___\nHPI: ___",
+      objectiveTemplate: "Vitals: ___",
+      assessmentTemplate: "Dx: ___",
+      planTemplate: "Rx: ___",
+    };
+    await expect(callerFor(doctor).doctorConsole.createSoapTemplate(input)).resolves.toEqual({ id: 5 });
+    expect(database.createSoapTemplate).toHaveBeenCalledWith(
+      expect.objectContaining({ ...input, createdBy: doctor.id }),
+      expect.objectContaining({ actorUserId: doctor.id, actorRole: "DOCTOR" }),
+    );
+  });
+
+  it("allows a doctor to update and deactivate a SOAP template", async () => {
+    database.updateSoapTemplate.mockResolvedValue({ id: 5 });
+    database.deactivateSoapTemplate.mockResolvedValue({ id: 5 });
+
+    await expect(callerFor(doctor).doctorConsole.updateSoapTemplate({ id: 5, name: "Updated name" })).resolves.toEqual({ id: 5 });
+    expect(database.updateSoapTemplate).toHaveBeenCalledWith(5, { name: "Updated name" }, expect.objectContaining({ actorUserId: doctor.id }));
+
+    await expect(callerFor(doctor).doctorConsole.deactivateSoapTemplate({ id: 5 })).resolves.toEqual({ id: 5 });
+    expect(database.deactivateSoapTemplate).toHaveBeenCalledWith(5, expect.objectContaining({ actorUserId: doctor.id }));
   });
 });
 
