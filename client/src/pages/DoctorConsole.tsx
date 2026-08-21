@@ -80,7 +80,7 @@ export default function DoctorConsole() {
       plan: consultation.data.note?.plan ?? "",
     });
     setRevision(consultation.data.note?.revision ?? 0);
-    setDiagnoses(consultation.data.diagnoses.length ? consultation.data.diagnoses.map(item => ({ code: item.code ?? "", display: item.display })) : [{ code: "", display: "" }]);
+    setDiagnoses(consultation.data.diagnoses.length ? consultation.data.diagnoses.map((item: { code?: string | null; display: string }) => ({ code: item.code ?? "", display: item.display })) : [{ code: "", display: "" }]);
   }, [consultation.data]);
 
   const saveDraft = trpc.doctorConsole.saveDraft.useMutation({
