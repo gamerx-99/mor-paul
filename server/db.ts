@@ -3,7 +3,7 @@ import { type PgTransaction } from "drizzle-orm/pg-core";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { randomBytes } from "node:crypto";
-import { auditEvents, clinicalNotes, clinicalOrders, clinicalPresets, dailyCloseouts, dispensationItems, dispensations, inventoryLots, invoiceLines, invoices, medicationOrderItems, medicationPrices, medications, patients, payments, queueEntries, serviceCharges, stockMovements, triageRecords, userSessions, users, visitDiagnoses, visits, type User } from "../drizzle/schema";
+import { auditEvents, clinicalNotes, clinicalOrders, clinicalPresets, dailyCloseouts, dispensationItems, dispensations, inventoryLots, invoiceLines, invoices, medicationOrderItems, medicationPrices, medications, patients, payments, queueEntries, serviceCharges, soapTemplates, stockMovements, triageRecords, userSessions, users, visitDiagnoses, visits, type User } from "../drizzle/schema";
 import { summarizePaymentsByClinicDay } from "./reporting";
 import { decryptNationalId, encryptNationalId, nationalIdLookupHash } from "./nationalIdCrypto";
 import { isValidThaiNationalId, maskThaiNationalId, normalizeThaiNationalId } from "../shared/nationalId";
@@ -912,7 +912,95 @@ export async function deleteClinicalPreset(presetId: number, doctorId: number, a
   });
 }
 
-export type MedicationCatalogInput = {
+export async function listSoapTemplates(filters?: { serviceType?: string }) {
+  const db = await requiredDb();
+  const where = filters?.serviceType
+    ? and(eq(soapTemplates.serviceType, filters.serviceType), eq(soapTemplates.isActive, true))
+    : eq(soapTemplates.isActive, true);
+  return db.select().from(soapTemplates).where(where).orderBy(soapTemplates.name);
+}
+
+export async function createSoapTemplate(input: {
+  serviceType: string;
+  name: string;
+  subjectiveTemplate: string;
+  objectiveTemplate: string;
+  assessmentTemplate: string;
+  planTemplate: string;
+  createdBy: number;
+}, audit: AuditContext) {
+  const db = await requiredDb();
+  return db.transaction(async tx => {
+    const result = await tx.insert(soapTemplates).values({
+      serviceType: input.serviceType,
+      name: input.name.trim(),
+      subjectiveTemplate: input.subjectiveTemplate,
+      objectiveTemplate: input.objectiveTemplate,
+      assessmentTemplate: input.assessmentTemplate,
+      planTemplate: input.planTemplate,
+      createdBy: input.createdBy,
+    });
+    const templateId = Number(getInsertId(result));
+    await tx.insert(auditEvents).values({
+      action: "SOAP_TEMPLATE_CREATED",
+      actorUserId: audit.actorUserId,
+      actorRole: audit.actorRole,
+      entityType: "SOAP_TEMPLATE",
+      entityId: String(templateId),
+      outcome: "ALLOWED",
+      requestId: audit.requestId,
+      metadata: safeAuditMetadata({ name: input.name, serviceType: input.serviceType }),
+    });
+    return { id: templateId };
+  });
+}
+
+export async function updateSoapTemplate(templateId: number, patch: {
+  name?: string;
+  subjectiveTemplate?: string;
+  objectiveTemplate?: string;
+  assessmentTemplate?: string;
+  planTemplate?: string;
+  isActive?: boolean;
+}, audit: AuditContext) {
+  const db = await requiredDb();
+  const [existing] = await db.select().from(soapTemplates).where(eq(soapTemplates.id, templateId)).limit(1);
+  if (!existing) throw new Error("SOAP_TEMPLATE_NOT_FOUND");
+  return db.transaction(async tx => {
+    await tx.update(soapTemplates).set(patch).where(eq(soapTemplates.id, templateId));
+    await tx.insert(auditEvents).values({
+      action: "SOAP_TEMPLATE_UPDATED",
+      actorUserId: audit.actorUserId,
+      actorRole: audit.actorRole,
+      entityType: "SOAP_TEMPLATE",
+      entityId: String(templateId),
+      outcome: "ALLOWED",
+      requestId: audit.requestId,
+      metadata: safeAuditMetadata({ name: existing.name, patch: Object.keys(patch).join(",") }),
+    });
+    return { id: templateId };
+  });
+}
+
+export async function deactivateSoapTemplate(templateId: number, audit: AuditContext) {
+  const db = await requiredDb();
+  const [existing] = await db.select().from(soapTemplates).where(eq(soapTemplates.id, templateId)).limit(1);
+  if (!existing) throw new Error("SOAP_TEMPLATE_NOT_FOUND");
+  return db.transaction(async tx => {
+    await tx.update(soapTemplates).set({ isActive: false }).where(eq(soapTemplates.id, templateId));
+    await tx.insert(auditEvents).values({
+      action: "SOAP_TEMPLATE_DEACTIVATED",
+      actorUserId: audit.actorUserId,
+      actorRole: audit.actorRole,
+      entityType: "SOAP_TEMPLATE",
+      entityId: String(templateId),
+      outcome: "ALLOWED",
+      requestId: audit.requestId,
+      metadata: safeAuditMetadata({ name: existing.name }),
+    });
+    return { id: templateId };
+  });
+}
   code: string;
   genericName: string;
   tradeName?: string | null;

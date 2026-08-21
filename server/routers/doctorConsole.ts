@@ -104,5 +104,52 @@ export const doctorConsoleRouter = router({
       throwMappedClinicalError(error);
     }
   }),
+  listSoapTemplates: doctorProcedure.input(z.object({ serviceType: z.string().optional() }).optional()).query(async ({ input }) => {
+    try {
+      return await listSoapTemplates(input?.serviceType ? { serviceType: input.serviceType } : undefined);
+    } catch (error) {
+      throwMappedClinicalError(error);
+    }
+  }),
+  createSoapTemplate: doctorProcedure.input(z.object({
+    serviceType: z.enum(["general", "followup", "acute", "chronic", "wellness", "other"]),
+    name: z.string().min(2).max(120),
+    subjectiveTemplate: z.string().min(1).max(4000),
+    objectiveTemplate: z.string().min(1).max(4000),
+    assessmentTemplate: z.string().min(1).max(4000),
+    planTemplate: z.string().min(1).max(4000),
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      return await createSoapTemplate({
+        ...input,
+        createdBy: ctx.user.id,
+      }, auditFor(ctx.user));
+    } catch (error) {
+      throwMappedClinicalError(error);
+    }
+  }),
+  updateSoapTemplate: doctorProcedure.input(z.object({
+    id: z.number().int().positive(),
+    name: z.string().min(2).max(120).optional(),
+    subjectiveTemplate: z.string().min(1).max(4000).optional(),
+    objectiveTemplate: z.string().min(1).max(4000).optional(),
+    assessmentTemplate: z.string().min(1).max(4000).optional(),
+    planTemplate: z.string().min(1).max(4000).optional(),
+    isActive: z.boolean().optional(),
+  })).mutation(async ({ ctx, input }) => {
+    try {
+      const { id, ...patch } = input;
+      return await updateSoapTemplate(id, patch, auditFor(ctx.user));
+    } catch (error) {
+      throwMappedClinicalError(error);
+    }
+  }),
+  deactivateSoapTemplate: doctorProcedure.input(z.object({ id: z.number().int().positive() })).mutation(async ({ ctx, input }) => {
+    try {
+      return await deactivateSoapTemplate(input.id, auditFor(ctx.user));
+    } catch (error) {
+      throwMappedClinicalError(error);
+    }
+  }),
 });
 
