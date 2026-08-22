@@ -130,29 +130,32 @@
 - [x] ปรับ API และ data layer ให้ลงทะเบียนต้องระบุ National ID หรือ Passport พร้อม validation, encryption, lookup hash, masking, audit trail และ ASSISTANT-only RBAC
 - [x] ปรับ Front Desk ให้เลือกประเภทเอกสารและห้ามสร้าง HN หากยังไม่กรอกเลขเอกสาร โดยไม่สร้างข้อมูลผู้ป่วยทดสอบ
 - [x] เพิ่ม regression tests และรัน TypeScript, Vitest, production build, และตรวจ SQL migration แบบ local-only ก่อนส่งมอบ
-- [ ] รอ UAT ด้วยข้อมูลที่ผู้ใช้บันทึกเอง, ตั้งค่า runtime ให้เชื่อม PostgreSQL อย่างปลอดภัย, และอนุมัติ commit/push/merge/deploy ของ release candidate
+- [ ] รอ UAT ด้วยข้อมูลที่ผู้ใช้บันทึกเอง — ตั้งค่า runtime PostgreSQL, commit/push/merge/deploy release candidate เสร็จแล้วและมีหลักฐาน readiness แบบไม่แตะ PHI
 - [x] ตรวจ baseline ของ PostgreSQL/Drizzle migration history และเตรียม migration identity document ให้เข้ากับฐานข้อมูลเป้าหมาย
 - [x] ใช้ baseline และ migration identity document ที่อนุมัติกับ Supabase target แล้วตรวจ schema metadata และ regression ที่เกี่ยวข้อง
 - [x] บันทึกผล migration โดยไม่เผย DATABASE_URL, secret หรือ PHI และอัปเดตสถานะ release candidate
 - [x] จัดทำรายการ schema ที่ reset ของ Supabase project `mor-paul` และ SQL reset ที่ตรวจทานได้ตามตัวเลือก A2
 - [x] ได้รับคำยืนยันสุดท้ายจาก owner ก่อนใช้คำสั่ง reset schema แบบ destructive บน Supabase project `mor-paul`
 - [x] หลัง reset ใช้ Drizzle migration artifacts, ตรวจ metadata schema, และทดสอบ release-candidate contract โดยไม่สร้างข้อมูลผู้ป่วย
-- [ ] ตรวจ compatibility ของ runtime/deployment กับ PostgreSQL และระบุ DATABASE_URL target ที่ต้องใช้
-- [ ] ตั้งค่า DATABASE_URL ของ Supabase ผ่านช่องทาง secrets ที่ปลอดภัยโดยไม่เผย credential
-- [ ] ยืนยัน runtime connection, run health/contract checks ที่ไม่สร้าง PHI, และบันทึกผล configuration
-- [ ] แก้ Vercel output directory ให้สอดคล้องกับ Vite build output และยืนยัน preview deployment ก่อน merge main
-- [ ] merge release candidate identity document เข้า GitHub main โดยรักษา history และตรวจ revision ที่ deploy
-- [ ] ตรวจ production health และ AccessGate โดยไม่สร้างหรือเปิดเผย PHI
-- [ ] P0: ยืนยันว่า Vercel runtime ใช้ DATABASE_URL ของ PostgreSQL ผ่าน health/aggregate check ที่ไม่อ่านหรือสร้าง PHI
-- [ ] P0: บันทึก deployment revision และผล runtime verification โดยไม่เก็บค่า secret หรือ PHI
+- [x] ตรวจ compatibility ของ runtime/deployment กับ PostgreSQL และระบุ DATABASE_URL target ที่ต้องใช้
+- [x] ตั้งค่า DATABASE_URL ของ Supabase ผ่านช่องทาง secrets ที่ปลอดภัยโดยไม่เผย credential
+- [x] ยืนยัน runtime connection, run health/contract checks ที่ไม่สร้าง PHI, และบันทึกผล configuration
+- [x] แก้ Vercel output directory ให้สอดคล้องกับ Vite build output และยืนยัน preview deployment ก่อน merge main
+- [x] merge release candidate identity document เข้า GitHub main โดยรักษา history และตรวจ revision ที่ deploy
+- [x] ตรวจ production health และ AccessGate โดยไม่สร้างหรือเปิดเผย PHI
+- [x] P0: ยืนยันว่า Vercel runtime ใช้ DATABASE_URL ของ PostgreSQL ผ่าน health/aggregate check ที่ไม่อ่านหรือสร้าง PHI
+- [x] P0: บันทึก deployment revision และผล runtime verification โดยไม่เก็บค่า secret หรือ PHI
 - [ ] P0: จัดเตรียมหลักฐาน UAT สำหรับ National ID/Passport และ role-critical workflow เพื่อให้ owner ตัดสิน GO/NO-GO
-- [ ] P0: แก้ Vercel routing middleware crash จาก middleware ของ Next/Supabase ที่ตกค้างและไม่เข้ากับ Vite/Express runtime แล้วตรวจ production ใหม่
-- [ ] P0: แก้ Vercel serverless API route 404 เพื่อให้ tRPC health check เรียก runtime PostgreSQL ได้โดยไม่แตะ PHI
-- [ ] P0: แก้ database aggregate helper ที่ทำให้ auth.setupStatus function crash แล้วตรวจ production readiness แบบไม่แตะ PHI
-- [ ] P0: แก้ Vercel function bundling ที่ไม่รวม server/_core/app แล้วตรวจ auth.setupStatus บน redeploy ที่ใช้ DATABASE_URL
-- [ ] P0: ตัด dotenv bootstrap ที่ทำให้ bundled ESM Vercel function crash แล้วตรวจ readiness แบบไม่แตะ PHI
-- [ ] P0: ใช้ CommonJS bundle สำหรับ Express dependency chain ภายใต้ Vercel entry ที่เป็น ESM แล้วตรวจ readiness แบบไม่แตะ PHI
-- [ ] P0: แยกชื่อ source handler และ CommonJS artifact เพื่อแก้ Vercel path conflict แล้วตรวจ preview/build ใหม่
-- [ ] P0: แก้ Vercel production environment injection ที่ทำให้ auth.setupStatus คืน DATABASE_UNAVAILABLE หลัง function เริ่มทำงานได้
-- [ ] P0: ปิด raw SQL leakage จาก readiness error และคืนข้อความปลอดภัยโดยไม่เปิด query หรือ schema detail
-- [ ] P0: ยืนยันว่า DATABASE_URL ชี้ PostgreSQL schema ที่มี baseline migration สำหรับ quoted users table ก่อน readiness/UAT
+- [x] P0: แก้ Vercel routing middleware crash จาก middleware ของ Next/Supabase ที่ตกค้างและไม่เข้ากับ Vite/Express runtime แล้วตรวจ production ใหม่
+- [x] P0: แก้ Vercel serverless API route 404 เพื่อให้ tRPC health check เรียก runtime PostgreSQL ได้โดยไม่แตะ PHI
+- [x] P0: แก้ database aggregate helper ที่ทำให้ auth.setupStatus function crash แล้วตรวจ production readiness แบบไม่แตะ PHI
+- [x] P0: แก้ Vercel function bundling ที่ไม่รวม server/_core/app แล้วตรวจ auth.setupStatus บน redeploy ที่ใช้ DATABASE_URL
+- [x] P0: ตัด dotenv bootstrap ที่ทำให้ bundled ESM Vercel function crash แล้วตรวจ readiness แบบไม่แตะ PHI
+- [x] P0: ใช้ CommonJS bundle สำหรับ Express dependency chain ภายใต้ Vercel entry ที่เป็น ESM แล้วตรวจ readiness แบบไม่แตะ PHI
+- [x] P0: แยกชื่อ source handler และ CommonJS artifact เพื่อแก้ Vercel path conflict แล้วตรวจ preview/build ใหม่
+- [x] P0: แก้ Vercel production environment injection ที่ทำให้ auth.setupStatus คืน DATABASE_UNAVAILABLE หลัง function เริ่มทำงานได้
+- [x] P0: ปิด raw SQL leakage จาก readiness error และคืนข้อความปลอดภัยโดยไม่เปิด query หรือ schema detail
+- [x] P0: ยืนยันว่า DATABASE_URL ชี้ PostgreSQL schema ที่มี baseline migration สำหรับ quoted users table ก่อน readiness/UAT
+- [ ] P0: UAT ที่คลินิกด้วยข้อมูลที่ owner/ผู้ใช้กรอกเอง และบันทึกผล National ID/Passport, role-critical workflow, mobile navigation, billing/payment-before-close และ AccessGate
+- [ ] P0: Owner อนุมัติแนวทาง RLS/policy สำหรับ 25 public tables หรือรับความเสี่ยงเป็นลายลักษณ์อักษรก่อน GO-LIVE
+- [ ] P0: Owner บันทึกผล UAT และตัดสิน GO/NO-GO หลังปิด operational controls, backup/recovery drill และ PDPA/legal review
