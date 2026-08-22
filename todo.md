@@ -143,3 +143,7 @@
 - [ ] แก้ Vercel output directory ให้สอดคล้องกับ Vite build output และยืนยัน preview deployment ก่อน merge main
 - [ ] merge release candidate identity document เข้า GitHub main โดยรักษา history และตรวจ revision ที่ deploy
 - [ ] ตรวจ production health และ AccessGate โดยไม่สร้างหรือเปิดเผย PHI
+- [ ] P0: ยืนยันว่า Vercel runtime ใช้ DATABASE_URL ของ PostgreSQL ผ่าน health/aggregate check ที่ไม่อ่านหรือสร้าง PHI
+- [ ] P0: บันทึก deployment revision และผล runtime verification โดยไม่เก็บค่า secret หรือ PHI
+- [ ] P0: จัดเตรียมหลักฐาน UAT สำหรับ National ID/Passport และ role-critical workflow เพื่อให้ owner ตัดสิน GO/NO-GO
+- [ ] P0: แก้ Vercel routing middleware crash จาก middleware ของ Next/Supabase ที่ตกค้างและไม่เข้ากับ Vite/Express runtime แล้วตรวจ production ใหม่
