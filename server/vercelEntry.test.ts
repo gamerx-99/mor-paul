@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import app from "../api/trpc/handler";
+import app from "../api/trpc/entry-source";
 
 describe("Vercel tRPC server entry", () => {
   it("exports the shared Express app as a request handler", () => {

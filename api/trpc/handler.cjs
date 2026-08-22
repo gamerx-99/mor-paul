@@ -24047,12 +24047,12 @@ var require_dist2 = __commonJS({
   }
 });
 
-// api/trpc/handler.ts
-var handler_exports = {};
-__export(handler_exports, {
-  default: () => handler_default
+// api/trpc/entry-source.ts
+var entry_source_exports = {};
+__export(entry_source_exports, {
+  default: () => entry_source_default
 });
-module.exports = __toCommonJS(handler_exports);
+module.exports = __toCommonJS(entry_source_exports);
 
 // node_modules/.pnpm/@trpc+server@11.18.0_typescript@5.9.3/node_modules/@trpc/server/dist/codes-DagpWZLc.mjs
 function mergeWithoutOverrides(obj1, ...objs) {
@@ -51352,8 +51352,8 @@ function createApp() {
   return app;
 }
 
-// api/trpc/handler.ts
-var handler_default = createApp();
+// api/trpc/entry-source.ts
+var entry_source_default = createApp();
 /*! Bundled license information:
 
 depd/index.js:
