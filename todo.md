@@ -153,3 +153,6 @@
 - [ ] P0: ตัด dotenv bootstrap ที่ทำให้ bundled ESM Vercel function crash แล้วตรวจ readiness แบบไม่แตะ PHI
 - [ ] P0: ใช้ CommonJS bundle สำหรับ Express dependency chain ภายใต้ Vercel entry ที่เป็น ESM แล้วตรวจ readiness แบบไม่แตะ PHI
 - [ ] P0: แยกชื่อ source handler และ CommonJS artifact เพื่อแก้ Vercel path conflict แล้วตรวจ preview/build ใหม่
+- [ ] P0: แก้ Vercel production environment injection ที่ทำให้ auth.setupStatus คืน DATABASE_UNAVAILABLE หลัง function เริ่มทำงานได้
+- [ ] P0: ปิด raw SQL leakage จาก readiness error และคืนข้อความปลอดภัยโดยไม่เปิด query หรือ schema detail
+- [ ] P0: ยืนยันว่า DATABASE_URL ชี้ PostgreSQL schema ที่มี baseline migration สำหรับ quoted users table ก่อน readiness/UAT

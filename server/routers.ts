@@ -43,7 +43,13 @@ export const appRouter = router({
   reports: reportsRouter,
   staff: staffRouter,
   auth: router({
-    setupStatus: publicProcedure.query(async () => ({ requiresSetup: (await countUsers()) === 0, setupEnabled: Boolean(process.env.INITIAL_SETUP_KEY) })),
+    setupStatus: publicProcedure.query(async () => {
+      try {
+        return { requiresSetup: (await countUsers()) === 0, setupEnabled: Boolean(process.env.INITIAL_SETUP_KEY) };
+      } catch {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "ไม่สามารถตรวจสอบการตั้งค่าระบบได้ในขณะนี้" });
+      }
+    }),
     me: publicProcedure.query(({ ctx }) => (ctx.user ? toPublicUser(ctx.user) : null)),
     bootstrap: publicProcedure
       .input(credentialInput.extend({ displayName: z.string().trim().min(2).max(120), setupKey: z.string().min(16).max(256) }))
