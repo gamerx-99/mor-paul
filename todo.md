@@ -159,3 +159,10 @@
 - [ ] P0: UAT ที่คลินิกด้วยข้อมูลที่ owner/ผู้ใช้กรอกเอง และบันทึกผล National ID/Passport, role-critical workflow, mobile navigation, billing/payment-before-close และ AccessGate
 - [ ] P0: Owner อนุมัติแนวทาง RLS/policy สำหรับ 25 public tables หรือรับความเสี่ยงเป็นลายลักษณ์อักษรก่อน GO-LIVE
 - [ ] P0: Owner บันทึกผล UAT และตัดสิน GO/NO-GO หลังปิด operational controls, backup/recovery drill และ PDPA/legal review
+
+### ข้อเสนอ Roadmap หลัง UAT — รอ Owner อนุมัติ (ยังไม่เริ่มพัฒนา)
+- [ ] P1: เพิ่ม structured allergy record (สารก่อแพ้, อาการ, ความรุนแรง, วันที่ยืนยัน) และ safety alert ก่อนสั่ง/จ่ายยา โดยกำหนด RBAC, audit และการแสดงผลที่ไม่เปิด PHI เกินสิทธิ์
+- [ ] P1: เพิ่มทะเบียนผู้จำหน่ายและ workflow รับยาเข้าคลังที่เชื่อมเลขล็อต, วันหมดอายุ, ต้นทุน และเอกสารรับเข้า เพื่อรองรับการตรวจสอบสต็อกย้อนหลัง
+- [ ] P1: เพิ่ม dashboard ยาใกล้หมดอายุ/ล็อตคงเหลือน้อย พร้อม export รายงานเชิงปฏิบัติการแบบไม่เผย PHI
+- [ ] P2: เพิ่มผลตรวจทางห้องปฏิบัติการ/ภาพวินิจฉัยเป็น metadata และเอกสารแนบหลัง private document storage, retention policy และ access review ได้รับอนุมัติ
+- [ ] P2: เพิ่มการนัดหมายและสถานะติดตามผู้ไม่มาตามนัด หลัง owner ยืนยัน workflow และเลือกช่องทางแจ้งเตือนที่สอดคล้องกับหลักใช้เทคโนโลยีน้อยที่สุด
