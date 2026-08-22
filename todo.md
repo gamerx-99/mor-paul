@@ -147,3 +147,4 @@
 - [ ] P0: บันทึก deployment revision และผล runtime verification โดยไม่เก็บค่า secret หรือ PHI
 - [ ] P0: จัดเตรียมหลักฐาน UAT สำหรับ National ID/Passport และ role-critical workflow เพื่อให้ owner ตัดสิน GO/NO-GO
 - [ ] P0: แก้ Vercel routing middleware crash จาก middleware ของ Next/Supabase ที่ตกค้างและไม่เข้ากับ Vite/Express runtime แล้วตรวจ production ใหม่
+- [ ] P0: แก้ Vercel serverless API route 404 เพื่อให้ tRPC health check เรียก runtime PostgreSQL ได้โดยไม่แตะ PHI
