@@ -13,12 +13,26 @@ This note records deployment-routing evidence only. No patient record, clinical 
 | Public request without Vercel SSO | Redirected to Deployment Protection SSO, as expected. |
 | Current Vercel configuration | Static Vite build with `outputDirectory: dist`; no API rewrite is configured. |
 | Current function entry | `api/[...path].ts` exports the Express application from `server/_core/app`. |
+| Production routing repair revision | GitHub merge commit `d6947f44dbeb0e99b0f6eee593237fc6720b6991`; Vercel deployment `6037136273` was marked `success` with revision URL `https://mor-paul-p25qvyork-gamerx-99s-projects.vercel.app`. |
+| Browser request after root-server remediation | The production login shell loaded, but `GET /api/trpc/auth.setupStatus` still returned Vercel `404: NOT_FOUND`; the request did not reach Express/tRPC. |
 
 ## Interpretation
 
 The browser-side `404` occurs at Vercel routing before the intended aggregate-only readiness procedure can run. It is therefore not evidence that `DATABASE_URL` succeeds or fails. The issue must be repaired and redeployed before using `auth.setupStatus` as the metadata-only PostgreSQL verification.
 
 Vercel’s current documentation states that functions for non-framework applications are defined under `/api`, while Express applications are auto-detected from supported root or `src/` entry-point locations. The present project uses a Vite static output plus an API catch-all entry that was not routed in production. The P0 remediation adds the supported root `server.ts` entry exporting the existing Express app and removes the non-routable catch-all file. This preserves the static Vite output while routing non-static requests, including `/api/trpc`, through the existing app contract.
+
+The first production verification showed that the platform still did not publish an API route. Static delivery works, but the root server entry alone is insufficient in this project configuration. The next repair must explicitly configure a Vercel Function route; runtime/database health remains unverified until the aggregate-only route returns successfully.
+
+## Vendor documentation consulted
+
+Vercel's official Express guide (updated 2026-07-06) states that a root `server.ts` file with a default Express export is a supported function entry point, and that an Express deployment is a single Vercel Function. The official rewrites guide (updated 2026-07-01) documents `source`/`destination` rules and named catch-all patterns such as `/api/:path*`. These sources support using an explicit function under `api/` plus a same-project rewrite when the Vite static deployment does not discover the root server entry.
+
+Sources: <https://vercel.com/docs/frameworks/backend/express> and <https://vercel.com/docs/routing/rewrites>.
+
+## Follow-up route repair
+
+The root Express entry and the generic `api/[...path].ts` entry were not published as a callable function in the static Vite deployment. The P0 follow-up therefore adds the concrete filesystem route `api/trpc/[...path].ts`. It exports the same shared `createApp()` instance, so the existing Express `/api/trpc` mount and RBAC contracts are unchanged. The TypeScript function uses Vercel's default Node runtime; a custom runtime declaration was deliberately removed after Vercel rejected its version format during preview deployment. The next Vercel preview must demonstrate a callable `auth.setupStatus` response before this item can be closed.
 
 ## Sources
 
