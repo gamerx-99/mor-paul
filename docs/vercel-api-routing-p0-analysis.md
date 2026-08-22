@@ -32,7 +32,7 @@ Sources: <https://vercel.com/docs/frameworks/backend/express> and <https://verce
 
 ## Follow-up route repair
 
-The root Express entry and the generic `api/[...path].ts` entry were not published as a callable function in the static Vite deployment. The P0 follow-up therefore adds the concrete filesystem route `api/trpc/[...path].ts` and explicitly declares its Node.js runtime in `vercel.json`. It exports the same shared `createApp()` instance, so the existing Express `/api/trpc` mount and RBAC contracts are unchanged. The next Vercel preview must demonstrate a callable `auth.setupStatus` response before this item can be closed.
+The root Express entry and the generic `api/[...path].ts` entry were not published as a callable function in the static Vite deployment. The P0 follow-up therefore adds the concrete filesystem route `api/trpc/[...path].ts`. It exports the same shared `createApp()` instance, so the existing Express `/api/trpc` mount and RBAC contracts are unchanged. The TypeScript function uses Vercel's default Node runtime; a custom runtime declaration was deliberately removed after Vercel rejected its version format during preview deployment. The next Vercel preview must demonstrate a callable `auth.setupStatus` response before this item can be closed.
 
 ## Sources
 
