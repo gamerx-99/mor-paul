@@ -8,7 +8,9 @@ describe("Vercel tRPC server entry", () => {
   });
 
   it("ships a bundled catch-all artifact without a source-only app import", () => {
-    const artifact = readFileSync(new URL("../api/trpc/[...path].js", import.meta.url), "utf8");
+    const wrapper = readFileSync(new URL("../api/trpc/[...path].js", import.meta.url), "utf8");
+    const artifact = readFileSync(new URL("../api/trpc/handler.cjs", import.meta.url), "utf8");
+    expect(wrapper).toContain('import app from "./handler.cjs"');
     expect(artifact).toContain("createApp");
     expect(artifact).not.toMatch(/from ["'][^"']*server\/_core\/app/);
     expect(artifact).not.toContain('dotenv/config');
