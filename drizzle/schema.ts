@@ -3,6 +3,7 @@ import { boolean, date, index, integer, numeric, pgEnum, pgTable, serial, text, 
 // Enums
 export const userRoleEnum = pgEnum("user_role", ["SYSTEM_ADMIN", "DOCTOR", "ASSISTANT"]);
 export const patientGenderEnum = pgEnum("patient_gender", ["MALE", "FEMALE", "OTHER", "UNSPECIFIED"]);
+export const idDocumentTypeEnum = pgEnum("id_document_type", ["THAI_NATIONAL_ID", "PASSPORT"]);
 export const visitStatusEnum = pgEnum("visit_status", ["REGISTERED", "TRIAGED", "WAITING_DOCTOR", "IN_CONSULT", "DISPENSING", "BILLED", "CLOSED", "CANCELLED"]);
 export const triageUrgencyEnum = pgEnum("triage_urgency", ["ROUTINE", "PRIORITY", "URGENT"]);
 export const queueStatusEnum = pgEnum("queue_status", ["WAITING", "CALLED", "IN_CONSULT", "COMPLETED", "CANCELLED"]);
@@ -60,14 +61,23 @@ export const patients = pgTable("patients", {
   address: text("address"),
   allergySummary: varchar("allergySummary", { length: 1000 }),
   /** Ciphertext and keyed lookup are deliberately never selected by client-facing patient queries. */
+  idDocumentType: idDocumentTypeEnum("idDocumentType"),
   nationalIdCiphertext: varchar("nationalIdCiphertext", { length: 512 }),
   nationalIdLookupHash: varchar("nationalIdLookupHash", { length: 64 }),
   nationalIdSetAt: timestamp("nationalIdSetAt"),
   nationalIdSetBy: integer("nationalIdSetBy"),
+  passportCiphertext: varchar("passportCiphertext", { length: 512 }),
+  passportLookupHash: varchar("passportLookupHash", { length: 64 }),
+  passportSetAt: timestamp("passportSetAt"),
+  passportSetBy: integer("passportSetBy"),
   createdBy: integer("createdBy").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().$onUpdate(() => new Date()).notNull(),
-}, table => [index("patients_name_idx").on(table.lastName, table.firstName), uniqueIndex("patients_national_id_hash_unique").on(table.nationalIdLookupHash)]);
+}, table => [
+  index("patients_name_idx").on(table.lastName, table.firstName),
+  uniqueIndex("patients_national_id_hash_unique").on(table.nationalIdLookupHash),
+  uniqueIndex("patients_passport_hash_unique").on(table.passportLookupHash),
+]);
 
 export const visits = pgTable("visits", {
   id: serial("id").primaryKey(),

@@ -29,9 +29,22 @@ describe("Front Desk RBAC", () => {
     await expect(caller.frontDesk.searchPatients({ query: "query" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.frontDesk.listQueue({ queueDate: "2026-08-20" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.frontDesk.checkDuplicates({ firstName: "Test", lastName: "Policy" })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(caller.frontDesk.registerPatient({ firstName: "Test", lastName: "Policy", dateOfBirth: "1990-01-01", gender: "UNSPECIFIED", consentAccepted: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(caller.frontDesk.registerPatient({ firstName: "Test", lastName: "Policy", dateOfBirth: "1990-01-01", gender: "UNSPECIFIED", idDocumentType: "PASSPORT", idDocumentNumber: "AB123456", consentAccepted: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.frontDesk.nationalIdStatus({ patientId: 1 })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.frontDesk.recordNationalId({ patientId: 1, nationalId: "1100700200104", source: "ASSISTANT_ENTRY" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects a missing or whitespace-only identity document before an ASSISTANT can reach the database", async () => {
+    const caller = appRouter.createCaller(contextFor("ASSISTANT"));
+    const baseInput = { firstName: "Test", lastName: "Policy", dateOfBirth: "1990-01-01", gender: "UNSPECIFIED" as const, idDocumentType: "PASSPORT" as const, consentAccepted: true };
+
+    await expect(caller.frontDesk.registerPatient(baseInput)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(caller.frontDesk.registerPatient({ ...baseInput, idDocumentNumber: "   " })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("denies direct patient-registration calls to DOCTOR", async () => {
+    const caller = appRouter.createCaller(contextFor("DOCTOR"));
+    await expect(caller.frontDesk.registerPatient({ firstName: "Test", lastName: "Policy", dateOfBirth: "1990-01-01", gender: "UNSPECIFIED", idDocumentType: "PASSPORT", idDocumentNumber: "AB123456", consentAccepted: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
   it("denies the doctor-only queue action to ASSISTANT", async () => {

@@ -35,3 +35,12 @@ export function decryptNationalId(ciphertext: string) {
     throw new Error("NATIONAL_ID_CIPHERTEXT_INVALID");
   }
 }
+
+/**
+ * The same versioned AES-256-GCM and keyed-HMAC primitive protects every
+ * identity document. These aliases preserve the legacy National-ID API while
+ * making Passport use explicit at the call site without exposing plaintext.
+ */
+export const encryptIdentityDocument = encryptNationalId;
+export const decryptIdentityDocument = decryptNationalId;
+export const identityDocumentLookupHash = nationalIdLookupHash;

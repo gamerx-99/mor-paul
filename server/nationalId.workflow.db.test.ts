@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { isValidThaiNationalId, maskThaiNationalId, normalizeThaiNationalId } from "../shared/nationalId";
+import { isValidPassportNumber, maskPassportNumber, normalizePassportNumber } from "../shared/identityDocument";
 
 const drizzleFactory = vi.hoisted(() => vi.fn());
 
@@ -8,11 +9,12 @@ vi.mock("drizzle-orm/postgres-js", async () => {
   return { ...actual, drizzle: drizzleFactory };
 });
 
-import { recordPatientNationalId } from "./db";
+import { createPatient, recordPatientNationalId } from "./db";
 
 const selectResults: unknown[][] = [];
 const updateCalls: Array<Record<string, unknown>> = [];
 const auditEvents: Array<Record<string, unknown>> = [];
+let affectedRows = 1;
 
 function queryFor(result: unknown[]) {
   const query: {
@@ -33,7 +35,7 @@ const tx = {
   select: vi.fn(() => ({ from: vi.fn(() => queryFor(selectResults.shift() ?? [])) })),
   update: vi.fn(() => ({ set: vi.fn((values: Record<string, unknown>) => ({ where: vi.fn(async () => {
     updateCalls.push(values);
-    return [{ affectedRows: 1 }];
+    return [{ affectedRows }];
   }) })) })),
   insert: vi.fn(() => ({
     values: vi.fn((values: Record<string, unknown>) => {
@@ -53,10 +55,12 @@ const audit = { actorUserId: 12, actorRole: "ASSISTANT" as const, requestId: "na
 describe("national ID write-once workflow", () => {
   beforeEach(() => {
     process.env.DATABASE_URL = "mysql://national-id-test";
+    process.env.NATIONAL_ID_ENCRYPTION_KEY = "test-identity-document-encryption-key-at-least-32-chars";
     drizzleFactory.mockReturnValue(db);
     selectResults.splice(0);
     updateCalls.splice(0);
     auditEvents.splice(0);
+    affectedRows = 1;
     vi.clearAllMocks();
     drizzleFactory.mockReturnValue(db);
   });
@@ -68,8 +72,29 @@ describe("national ID write-once workflow", () => {
     expect(maskThaiNationalId("1100700200107")).toBe("11••••••••107");
   });
 
+  it("normalizes, validates, and masks Passport values without retaining separators", () => {
+    expect(normalizePassportNumber(" ab-123 456 ")).toBe("AB123456");
+    expect(isValidPassportNumber(" ab-123 456 ")).toBe(true);
+    expect(isValidPassportNumber("ABCDEF")).toBe(false);
+    expect(maskPassportNumber(" ab-123 456 ")).toBe("AB••••56");
+  });
+
+  it("creates a Passport-backed HN with ciphertext/hash only and a PHI-safe audit event", async () => {
+    selectResults.push([{ id: 1, hn: "HN00000001", firstName: "Policy", lastName: "Test", dateOfBirth: "1990-01-01", gender: "UNSPECIFIED", phone: null, address: null, allergySummary: null, idDocumentType: "PASSPORT", createdBy: 12, createdAt: new Date(), updatedAt: new Date() }]);
+
+    const result = await createPatient({ firstName: "Policy", lastName: "Test", dateOfBirth: "1990-01-01", gender: "UNSPECIFIED", idDocumentType: "PASSPORT", idDocumentNumber: " ab-123 456 ", consentAccepted: true }, audit);
+
+    expect(result).toMatchObject({ hn: "HN00000001", idDocumentType: "PASSPORT", identityDocumentMasked: "AB••••56" });
+    const persistedPatient = auditEvents.find(values => "passportCiphertext" in values);
+    const registrationAudit = auditEvents.find(values => values.action === "PATIENT_REGISTERED");
+    expect(persistedPatient).toEqual(expect.objectContaining({ passportCiphertext: expect.any(String), passportLookupHash: expect.any(String), nationalIdCiphertext: null }));
+    expect(JSON.stringify(persistedPatient)).not.toContain("AB123456");
+    expect(registrationAudit).toEqual(expect.objectContaining({ metadata: expect.stringContaining("PASSPORT") }));
+    expect(JSON.stringify(registrationAudit)).not.toContain("AB123456");
+  });
+
   it("encrypts and records a national ID once, returning only its masked value", async () => {
-    selectResults.push([{ id: 7, nationalIdCiphertext: null }]);
+    selectResults.push([{ id: 7, idDocumentType: null, nationalIdCiphertext: null }]);
 
     const result = await recordPatientNationalId({ patientId: 7, nationalId: "1100700200107", source: "ASSISTANT_ENTRY" }, audit);
 
@@ -86,10 +111,19 @@ describe("national ID write-once workflow", () => {
   });
 
   it("refuses a second write before issuing an update or audit event", async () => {
-    selectResults.push([{ id: 7, nationalIdCiphertext: "already-encrypted" }]);
+    selectResults.push([{ id: 7, idDocumentType: "THAI_NATIONAL_ID", nationalIdCiphertext: "already-encrypted" }]);
 
     await expect(recordPatientNationalId({ patientId: 7, nationalId: "1100700200107", source: "ASSISTANT_ENTRY" }, audit)).rejects.toThrow("NATIONAL_ID_WRITE_ONCE");
     expect(updateCalls).toHaveLength(0);
+    expect(auditEvents).toHaveLength(0);
+  });
+
+  it("does not emit an allowed audit event when a concurrent identity write wins the conditional update", async () => {
+    selectResults.push([{ id: 7, idDocumentType: null, nationalIdCiphertext: null }]);
+    affectedRows = 0;
+
+    await expect(recordPatientNationalId({ patientId: 7, nationalId: "1100700200107", source: "ASSISTANT_ENTRY" }, audit)).rejects.toThrow("NATIONAL_ID_WRITE_ONCE");
+    expect(updateCalls).toHaveLength(1);
     expect(auditEvents).toHaveLength(0);
   });
 });
