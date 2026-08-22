@@ -72,6 +72,18 @@ describe("auth.bootstrap", () => {
     expect(database.findUserByUsername).not.toHaveBeenCalled();
   });
 
+  it("maps readiness database failures to a safe message without query text", async () => {
+    database.countUsers.mockRejectedValue(new Error('Failed query: select count(*) from "users"'));
+    const caller = appRouter.createCaller({
+      user: null,
+      req: { secure: true, headers: {} },
+      res: { cookie: vi.fn(), clearCookie: vi.fn() },
+    } as never);
+
+    await expect(caller.auth.setupStatus()).rejects.toThrow("ไม่สามารถตรวจสอบการตั้งค่าระบบได้ในขณะนี้");
+    await expect(caller.auth.setupStatus()).rejects.not.toThrow(/select count/i);
+  });
+
   it("rejects invalid setupKey with FORBIDDEN", async () => {
     const caller = appRouter.createCaller({
       user: null,
