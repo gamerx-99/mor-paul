@@ -140,3 +140,6 @@
 - [ ] ตรวจ compatibility ของ runtime/deployment กับ PostgreSQL และระบุ DATABASE_URL target ที่ต้องใช้
 - [ ] ตั้งค่า DATABASE_URL ของ Supabase ผ่านช่องทาง secrets ที่ปลอดภัยโดยไม่เผย credential
 - [ ] ยืนยัน runtime connection, run health/contract checks ที่ไม่สร้าง PHI, และบันทึกผล configuration
+- [ ] แก้ Vercel output directory ให้สอดคล้องกับ Vite build output และยืนยัน preview deployment ก่อน merge main
+- [ ] merge release candidate identity document เข้า GitHub main โดยรักษา history และตรวจ revision ที่ deploy
+- [ ] ตรวจ production health และ AccessGate โดยไม่สร้างหรือเปิดเผย PHI
