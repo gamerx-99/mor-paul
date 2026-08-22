@@ -151,3 +151,5 @@
 - [ ] P0: แก้ database aggregate helper ที่ทำให้ auth.setupStatus function crash แล้วตรวจ production readiness แบบไม่แตะ PHI
 - [ ] P0: แก้ Vercel function bundling ที่ไม่รวม server/_core/app แล้วตรวจ auth.setupStatus บน redeploy ที่ใช้ DATABASE_URL
 - [ ] P0: ตัด dotenv bootstrap ที่ทำให้ bundled ESM Vercel function crash แล้วตรวจ readiness แบบไม่แตะ PHI
+- [ ] P0: ใช้ CommonJS bundle สำหรับ Express dependency chain ภายใต้ Vercel entry ที่เป็น ESM แล้วตรวจ readiness แบบไม่แตะ PHI
+- [ ] P0: แยกชื่อ source handler และ CommonJS artifact เพื่อแก้ Vercel path conflict แล้วตรวจ preview/build ใหม่
