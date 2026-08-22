@@ -1,5 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "vite build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "functions": {
+    "api/trpc/[...path].ts": {
+      "runtime": "nodejs22.x"
+    }
+  }
 }
