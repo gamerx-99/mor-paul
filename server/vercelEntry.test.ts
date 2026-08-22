@@ -11,5 +11,6 @@ describe("Vercel tRPC server entry", () => {
     const artifact = readFileSync(new URL("../api/trpc/[...path].js", import.meta.url), "utf8");
     expect(artifact).toContain("createApp");
     expect(artifact).not.toMatch(/from ["'][^"']*server\/_core\/app/);
+    expect(artifact).not.toContain('dotenv/config');
   });
 });

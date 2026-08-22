@@ -150,3 +150,4 @@
 - [ ] P0: แก้ Vercel serverless API route 404 เพื่อให้ tRPC health check เรียก runtime PostgreSQL ได้โดยไม่แตะ PHI
 - [ ] P0: แก้ database aggregate helper ที่ทำให้ auth.setupStatus function crash แล้วตรวจ production readiness แบบไม่แตะ PHI
 - [ ] P0: แก้ Vercel function bundling ที่ไม่รวม server/_core/app แล้วตรวจ auth.setupStatus บน redeploy ที่ใช้ DATABASE_URL
+- [ ] P0: ตัด dotenv bootstrap ที่ทำให้ bundled ESM Vercel function crash แล้วตรวจ readiness แบบไม่แตะ PHI
