@@ -48,3 +48,5 @@ After the routing fix is deployed, call only `GET /api/trpc/auth.setupStatus?inp
 ## Follow-up: Vercel function packaging
 
 The readiness-only invocation reached the explicit tRPC route, but the Vercel runtime reported `ERR_MODULE_NOT_FOUND` for the emitted function's import of `server/_core/app`. The remediation moves the source handler to `api/trpc/handler.ts` and bundles it during the Vercel build into the deployed `api/trpc/[...path].js` catch-all artifact. This preserves the Express/tRPC contract while removing a runtime dependency on source files that Vercel did not package. No secrets, PHI, or production records were used in this analysis.
+
+The generated catch-all artifact is now kept in source control so Vercel discovers the function before its static build runs; the build command regenerates the same artifact from `api/trpc/handler.ts`. A regression test verifies that the committed artifact exists and does not retain a source-only import of `server/_core/app`.
