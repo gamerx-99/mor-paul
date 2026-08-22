@@ -148,3 +148,5 @@
 - [ ] P0: จัดเตรียมหลักฐาน UAT สำหรับ National ID/Passport และ role-critical workflow เพื่อให้ owner ตัดสิน GO/NO-GO
 - [ ] P0: แก้ Vercel routing middleware crash จาก middleware ของ Next/Supabase ที่ตกค้างและไม่เข้ากับ Vite/Express runtime แล้วตรวจ production ใหม่
 - [ ] P0: แก้ Vercel serverless API route 404 เพื่อให้ tRPC health check เรียก runtime PostgreSQL ได้โดยไม่แตะ PHI
+- [ ] P0: แก้ database aggregate helper ที่ทำให้ auth.setupStatus function crash แล้วตรวจ production readiness แบบไม่แตะ PHI
+- [ ] P0: แก้ Vercel function bundling ที่ไม่รวม server/_core/app แล้วตรวจ auth.setupStatus บน redeploy ที่ใช้ DATABASE_URL

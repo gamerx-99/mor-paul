@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import app from "../api/trpc/[...path]";
+import app from "../api/trpc/handler";
 
 describe("Vercel tRPC server entry", () => {
   it("exports the shared Express app as a request handler", () => {

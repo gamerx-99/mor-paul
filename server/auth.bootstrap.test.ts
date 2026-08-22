@@ -59,6 +59,19 @@ describe("auth.bootstrap", () => {
     expect(cookie).toHaveBeenCalledOnce();
   });
 
+  it("returns aggregate-only setup status without reading user records", async () => {
+    database.countUsers.mockResolvedValue(0);
+    const caller = appRouter.createCaller({
+      user: null,
+      req: { secure: true, headers: {} },
+      res: { cookie: vi.fn(), clearCookie: vi.fn() },
+    } as never);
+
+    await expect(caller.auth.setupStatus()).resolves.toMatchObject({ requiresSetup: true });
+    expect(database.countUsers).toHaveBeenCalledOnce();
+    expect(database.findUserByUsername).not.toHaveBeenCalled();
+  });
+
   it("rejects invalid setupKey with FORBIDDEN", async () => {
     const caller = appRouter.createCaller({
       user: null,

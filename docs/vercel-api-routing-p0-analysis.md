@@ -44,3 +44,7 @@ The root Express entry and the generic `api/[...path].ts` entry were not publish
 ## Next verification
 
 After the routing fix is deployed, call only `GET /api/trpc/auth.setupStatus?input={"json":null}` through the authenticated deployment. This procedure uses an aggregate count and returns a boolean; it must not create or retrieve PHI.
+
+## Follow-up: Vercel function packaging
+
+The readiness-only invocation reached the explicit tRPC route, but the Vercel runtime reported `ERR_MODULE_NOT_FOUND` for the emitted function's import of `server/_core/app`. The remediation moves the source handler to `api/trpc/handler.ts` and bundles it during the Vercel build into the deployed `api/trpc/[...path].js` catch-all artifact. This preserves the Express/tRPC contract while removing a runtime dependency on source files that Vercel did not package. No secrets, PHI, or production records were used in this analysis.
