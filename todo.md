@@ -124,3 +124,22 @@
 ### เฟส C — ฟีเจอร์ใหญ่ที่ต้องตัดสินใจเชิงธุรกิจก่อนเริ่ม (ยังไม่เริ่ม รอคุยกับเจ้าของระบบ)
 - [ ] ออกแบบระบบนัดหมายล่วงหน้า (ปฏิทินวัน/สัปดาห์, สถานะไม่มาตามนัด) — ต้องออกแบบ schema ใหม่ทั้งหมด
 - [ ] ตัดสินใจช่องทางแจ้งเตือน/ติดตามนัด (SMS / LINE OA / โทรตามรายชื่อด้วยมือ) ก่อนเริ่มพัฒนาระบบเตือนนัด เพราะขัดกับกฎ "ใช้เทคโนโลยีน้อยที่สุด" ที่ยึดไว้เดิม
+
+### ส่งมอบเร่งด่วน 5 ชั่วโมง — Identity Document P0
+- [x] เพิ่ม schema และ SQL migration PostgreSQL ที่ยังไม่ถูกใช้สำหรับประเภทเอกสาร เลข Passport ที่เข้ารหัส และ unique lookup hash โดยรักษาเลขบัตรประชาชนเป็น write-once/เข้ารหัส/ปกปิดค่าเดิม
+- [x] ปรับ API และ data layer ให้ลงทะเบียนต้องระบุ National ID หรือ Passport พร้อม validation, encryption, lookup hash, masking, audit trail และ ASSISTANT-only RBAC
+- [x] ปรับ Front Desk ให้เลือกประเภทเอกสารและห้ามสร้าง HN หากยังไม่กรอกเลขเอกสาร โดยไม่สร้างข้อมูลผู้ป่วยทดสอบ
+- [x] เพิ่ม regression tests และรัน TypeScript, Vitest, production build, และตรวจ SQL migration แบบ local-only ก่อนส่งมอบ
+- [ ] รอ UAT ด้วยข้อมูลที่ผู้ใช้บันทึกเอง, ตั้งค่า runtime ให้เชื่อม PostgreSQL อย่างปลอดภัย, และอนุมัติ commit/push/merge/deploy ของ release candidate
+- [x] ตรวจ baseline ของ PostgreSQL/Drizzle migration history และเตรียม migration identity document ให้เข้ากับฐานข้อมูลเป้าหมาย
+- [x] ใช้ baseline และ migration identity document ที่อนุมัติกับ Supabase target แล้วตรวจ schema metadata และ regression ที่เกี่ยวข้อง
+- [x] บันทึกผล migration โดยไม่เผย DATABASE_URL, secret หรือ PHI และอัปเดตสถานะ release candidate
+- [x] จัดทำรายการ schema ที่ reset ของ Supabase project `mor-paul` และ SQL reset ที่ตรวจทานได้ตามตัวเลือก A2
+- [x] ได้รับคำยืนยันสุดท้ายจาก owner ก่อนใช้คำสั่ง reset schema แบบ destructive บน Supabase project `mor-paul`
+- [x] หลัง reset ใช้ Drizzle migration artifacts, ตรวจ metadata schema, และทดสอบ release-candidate contract โดยไม่สร้างข้อมูลผู้ป่วย
+- [ ] ตรวจ compatibility ของ runtime/deployment กับ PostgreSQL และระบุ DATABASE_URL target ที่ต้องใช้
+- [ ] ตั้งค่า DATABASE_URL ของ Supabase ผ่านช่องทาง secrets ที่ปลอดภัยโดยไม่เผย credential
+- [ ] ยืนยัน runtime connection, run health/contract checks ที่ไม่สร้าง PHI, และบันทึกผล configuration
+- [ ] แก้ Vercel output directory ให้สอดคล้องกับ Vite build output และยืนยัน preview deployment ก่อน merge main
+- [ ] merge release candidate identity document เข้า GitHub main โดยรักษา history และตรวจ revision ที่ deploy
+- [ ] ตรวจ production health และ AccessGate โดยไม่สร้างหรือเปิดเผย PHI

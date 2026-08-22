@@ -2,10 +2,11 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { readNationalIdFromLocalSmartCardBridge } from "@/lib/smartCardBridge";
 import { AlertTriangle, CalendarPlus, CheckCircle2, CreditCard, Info, Lock, Search, ShieldAlert, UserPlus, UsersRound, X } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import React, { FormEvent, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 
 type Gender = "MALE" | "FEMALE" | "OTHER" | "UNSPECIFIED";
+type IdentityDocumentType = "THAI_NATIONAL_ID" | "PASSPORT";
 type PatientChoice = {
   id: number;
   hn: string;
@@ -14,6 +15,7 @@ type PatientChoice = {
   dateOfBirth: string;
   gender: Gender;
   phone: string | null;
+  idDocumentType: IdentityDocumentType | null;
 };
 
 type DuplicateCandidate = {
@@ -24,6 +26,7 @@ type DuplicateCandidate = {
   dateOfBirth: string;
   gender: Gender;
   phone: string | null;
+  idDocumentType: IdentityDocumentType | null;
   createdAt: Date;
 };
 
@@ -35,7 +38,8 @@ const blankRegistration = {
   phone: "",
   address: "",
   allergySummary: "",
-  nationalId: "",
+  idDocumentType: "THAI_NATIONAL_ID" as IdentityDocumentType,
+  idDocumentNumber: "",
   consentAccepted: false,
 };
 
@@ -97,7 +101,7 @@ export default function FrontDesk() {
     },
   });
 
-  const nationalIdStatus = trpc.frontDesk.nationalIdStatus.useQuery(nationalIdStatusInput, { enabled: canUseFrontDesk && Boolean(selectedPatient?.id) });
+  const nationalIdStatus = trpc.frontDesk.nationalIdStatus.useQuery(nationalIdStatusInput, { enabled: canUseFrontDesk && Boolean(selectedPatient?.id) && !selectedPatient?.idDocumentType });
   const recordNationalId = trpc.frontDesk.recordNationalId.useMutation({
     onSuccess: result => {
       setNationalIdInput("");
@@ -109,6 +113,10 @@ export default function FrontDesk() {
   async function executeRegistration() {
     setError(null);
     setNotice(null);
+    if (!registration.idDocumentNumber.trim()) {
+      setError("กรุณาระบุเลขบัตรประชาชนหรือ Passport ก่อนสร้าง HN");
+      return;
+    }
     try {
       await registerPatient.mutateAsync(registration);
     } catch (cause) {
@@ -123,6 +131,11 @@ export default function FrontDesk() {
 
     if (!registration.consentAccepted) {
       setError("กรุณายินยอมให้จัดเก็บและประมวลผลข้อมูลตามนโยบายความเป็นส่วนตัว (PDPA)");
+      return;
+    }
+
+    if (!registration.idDocumentNumber.trim()) {
+      setError("กรุณาระบุเลขบัตรประชาชนหรือ Passport ก่อนสร้าง HN");
       return;
     }
 
@@ -163,6 +176,21 @@ export default function FrontDesk() {
       const nationalId = await readNationalIdFromLocalSmartCardBridge();
       setNationalIdInput(nationalId);
       setNotice("อ่านเลขบัตรจาก Local Smart Card Bridge แล้ว โปรดตรวจสอบและกดบันทึก");
+    } catch (cause) {
+      if (cause instanceof Error && cause.message === "SMART_CARD_BRIDGE_UNAVAILABLE") {
+        setError("ไม่พบ Local Smart Card Bridge บนอุปกรณ์นี้ กรุณากรอกเลขบัตรประชาชนเอง");
+      } else {
+        setError("ไม่สามารถอ่านเลขบัตรจาก Smart Card ได้ กรุณาตรวจเครื่องอ่านและบัตร แล้วลองใหม่");
+      }
+    }
+  }
+
+  async function readRegistrationFromSmartCard() {
+    setError(null);
+    try {
+      const nationalId = await readNationalIdFromLocalSmartCardBridge();
+      setRegistration(current => ({ ...current, idDocumentType: "THAI_NATIONAL_ID", idDocumentNumber: nationalId }));
+      setNotice("อ่านเลขบัตรจาก Local Smart Card Bridge แล้ว โปรดตรวจสอบก่อนบันทึกและสร้าง HN");
     } catch (cause) {
       if (cause instanceof Error && cause.message === "SMART_CARD_BRIDGE_UNAVAILABLE") {
         setError("ไม่พบ Local Smart Card Bridge บนอุปกรณ์นี้ กรุณากรอกเลขบัตรประชาชนเอง");
@@ -327,9 +355,21 @@ export default function FrontDesk() {
             </label>
             <InputField label="โทรศัพท์" value={registration.phone} onChange={value => setRegistration(current => ({ ...current, phone: value }))} inputMode="tel" />
             <InputField label="ข้อมูลแพ้ยา / ข้อควรระวัง" value={registration.allergySummary} onChange={value => setRegistration(current => ({ ...current, allergySummary: value }))} />
-            <div className="sm:col-span-2">
-              <InputField label="เลขบัตรประชาชน (ไม่บังคับ)" value={registration.nationalId} onChange={value => setRegistration(current => ({ ...current, nationalId: value }))} inputMode="numeric" />
-              <p className="mt-1.5 text-xs leading-5 text-[#71837E]">บันทึกครั้งเดียวและแก้ไขไม่ได้ภายหลัง ระบบจะแสดงเฉพาะ 2 หลักแรกและ 3 หลักท้าย</p>
+            <div className="sm:col-span-2 grid gap-3 sm:grid-cols-[220px_minmax(0,1fr)_auto]">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-semibold text-[#344C46]">เอกสารยืนยันตัวตน</span>
+                <select value={registration.idDocumentType} onChange={event => setRegistration(current => ({ ...current, idDocumentType: event.target.value as IdentityDocumentType, idDocumentNumber: "" }))} className="h-11 w-full rounded-xl border border-[#D7E1DB] bg-white px-3 text-sm outline-none focus:border-[#0B6B67] focus:ring-4 focus:ring-[#0B6B67]/10">
+                  <option value="THAI_NATIONAL_ID">บัตรประชาชน</option>
+                  <option value="PASSPORT">Passport</option>
+                </select>
+              </label>
+              <InputField label={registration.idDocumentType === "THAI_NATIONAL_ID" ? "เลขบัตรประชาชน 13 หลัก" : "หมายเลข Passport"} value={registration.idDocumentNumber} onChange={value => setRegistration(current => ({ ...current, idDocumentNumber: value }))} inputMode={registration.idDocumentType === "THAI_NATIONAL_ID" ? "numeric" : undefined} required />
+              {registration.idDocumentType === "THAI_NATIONAL_ID" && (
+                <button type="button" onClick={readRegistrationFromSmartCard} className="mt-[29px] inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#A9CBC3] bg-white px-4 text-sm font-semibold text-[#0B6B67] transition hover:bg-[#F7FCFA] active:scale-[0.98]">
+                  <CreditCard size={16} />อ่าน Smart Card
+                </button>
+              )}
+              <p className="sm:col-span-3 text-xs leading-5 text-[#71837E]">ต้องระบุเอกสารก่อนสร้าง HN ข้อมูลจะเข้ารหัสและล็อกหลังบันทึก บัตรประชาชนจะแสดงเฉพาะ 2 หลักแรกและ 3 หลักท้าย ส่วน Passport จะแสดงเฉพาะ 2 หลักแรกและ 2 หลักท้าย</p>
             </div>
             <label className="block sm:col-span-2">
               <span className="mb-1.5 block text-sm font-semibold text-[#344C46]">ที่อยู่</span>
@@ -416,7 +456,7 @@ export default function FrontDesk() {
       </section>
 
       {/* National ID Section */}
-      {selectedPatient && (
+      {selectedPatient && !selectedPatient.idDocumentType && (
         <section className="rounded-[20px] border border-[#D5E3DD] bg-[#FDFCF9] p-5 shadow-[0_10px_30px_rgba(23,49,47,0.04)]">
           <div className="flex items-start gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#EAF4F0] text-[#0B6B67]"><CreditCard size={19} /></span>
@@ -474,4 +514,3 @@ export function AccessDenied({ title, detail }: { title: string; detail: string 
     </section>
   );
 }
-

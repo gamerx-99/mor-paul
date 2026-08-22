@@ -15,7 +15,8 @@ const patientInput = z.object({
   phone: optionalText(32),
   address: optionalText(5000),
   allergySummary: optionalText(1000),
-  nationalId: optionalText(32),
+  idDocumentType: z.enum(["THAI_NATIONAL_ID", "PASSPORT"]),
+  idDocumentNumber: z.string().trim().min(1, "กรุณาระบุเลขเอกสารยืนยันตัวตน").max(32),
   consentAccepted: z.boolean().refine(val => val === true, { message: "กรุณายินยอมให้จัดเก็บและประมวลผลข้อมูลตามนโยบายความเป็นส่วนตัว (PDPA)" }),
 });
 
@@ -40,6 +41,7 @@ function throwMappedDomainError(error: unknown): never {
   const code = error instanceof Error ? error.message : "";
   if (code === "INVALID_DATE") throw new TRPCError({ code: "BAD_REQUEST", message: "วันที่ไม่ถูกต้อง" });
   if (code === "INVALID_NATIONAL_ID") throw new TRPCError({ code: "BAD_REQUEST", message: "เลขบัตรประชาชนไม่ถูกต้อง" });
+  if (code === "INVALID_PASSPORT") throw new TRPCError({ code: "BAD_REQUEST", message: "หมายเลข Passport ไม่ถูกต้อง" });
   if (code === "NATIONAL_ID_WRITE_ONCE") throw new TRPCError({ code: "CONFLICT", message: "เลขบัตรประชาชนถูกบันทึกแล้วและไม่สามารถแก้ไขได้" });
   if (code === "PATIENT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "ไม่พบผู้รับบริการที่เลือก" });
   if (code === "VISIT_NOT_FOUND") throw new TRPCError({ code: "NOT_FOUND", message: "ไม่พบรายการรับบริการ" });

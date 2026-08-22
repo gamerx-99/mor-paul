@@ -5,8 +5,9 @@ import postgres from "postgres";
 import { randomBytes } from "node:crypto";
 import { auditEvents, clinicalNotes, clinicalOrders, clinicalPresets, dailyCloseouts, dispensationItems, dispensations, inventoryLots, invoiceLines, invoices, medicationOrderItems, medicationPrices, medications, patients, payments, queueEntries, serviceCharges, soapTemplates, stockMovements, triageRecords, userSessions, users, visitDiagnoses, visits, type User } from "../drizzle/schema";
 import { summarizePaymentsByClinicDay } from "./reporting";
-import { decryptNationalId, encryptNationalId, nationalIdLookupHash } from "./nationalIdCrypto";
+import { decryptNationalId, encryptIdentityDocument, encryptNationalId, identityDocumentLookupHash, nationalIdLookupHash } from "./nationalIdCrypto";
 import { isValidThaiNationalId, maskThaiNationalId, normalizeThaiNationalId } from "../shared/nationalId";
+import { isValidPassportNumber, maskPassportNumber, normalizePassportNumber, type IdentityDocumentType } from "../shared/identityDocument";
 
 function getInsertId(result: any): number {
   if (!result) return 0;
@@ -326,7 +327,8 @@ export type PatientRegistrationInput = {
   phone?: string | null;
   address?: string | null;
   allergySummary?: string | null;
-  nationalId?: string | null;
+  idDocumentType: IdentityDocumentType;
+  idDocumentNumber: string;
   consentAccepted?: boolean;
 };
 
@@ -364,6 +366,7 @@ export async function checkDuplicatePatients(input: { firstName: string; lastNam
       dateOfBirth: patients.dateOfBirth,
       gender: patients.gender,
       phone: patients.phone,
+      idDocumentType: patients.idDocumentType,
       createdAt: patients.createdAt,
     })
     .from(patients)
@@ -377,18 +380,31 @@ export async function createPatient(input: PatientRegistrationInput, audit: Audi
     // A short random placeholder permits allocating the database id first; it is
     // replaced within the same transaction by the permanent, sequential HN.
     const temporaryHn = `P${randomBytes(10).toString("hex")}`;
-    const { nationalId, consentAccepted, ...patientInput } = input;
-    const normalizedNationalId = nationalId ? normalizeThaiNationalId(nationalId) : null;
-    if (normalizedNationalId && !isValidThaiNationalId(normalizedNationalId)) throw new Error("INVALID_NATIONAL_ID");
+    const { idDocumentType, idDocumentNumber, consentAccepted, ...patientInput } = input;
+    const normalizedIdDocumentNumber = idDocumentType === "THAI_NATIONAL_ID"
+      ? normalizeThaiNationalId(idDocumentNumber)
+      : normalizePassportNumber(idDocumentNumber);
+    const documentIsValid = idDocumentType === "THAI_NATIONAL_ID"
+      ? isValidThaiNationalId(normalizedIdDocumentNumber)
+      : isValidPassportNumber(normalizedIdDocumentNumber);
+    if (!documentIsValid) throw new Error(idDocumentType === "THAI_NATIONAL_ID" ? "INVALID_NATIONAL_ID" : "INVALID_PASSPORT");
+    const now = new Date();
+    const ciphertext = encryptIdentityDocument(normalizedIdDocumentNumber);
+    const lookupHash = identityDocumentLookupHash(normalizedIdDocumentNumber);
     const result = await tx.insert(patients).values({
       ...patientInput,
       dateOfBirth: validateDateOnly(patientInput.dateOfBirth),
       hn: temporaryHn,
       createdBy: audit.actorUserId,
-      nationalIdCiphertext: normalizedNationalId ? encryptNationalId(normalizedNationalId) : null,
-      nationalIdLookupHash: normalizedNationalId ? nationalIdLookupHash(normalizedNationalId) : null,
-      nationalIdSetAt: normalizedNationalId ? new Date() : null,
-      nationalIdSetBy: normalizedNationalId ? audit.actorUserId : null,
+      idDocumentType,
+      nationalIdCiphertext: idDocumentType === "THAI_NATIONAL_ID" ? ciphertext : null,
+      nationalIdLookupHash: idDocumentType === "THAI_NATIONAL_ID" ? lookupHash : null,
+      nationalIdSetAt: idDocumentType === "THAI_NATIONAL_ID" ? now : null,
+      nationalIdSetBy: idDocumentType === "THAI_NATIONAL_ID" ? audit.actorUserId : null,
+      passportCiphertext: idDocumentType === "PASSPORT" ? ciphertext : null,
+      passportLookupHash: idDocumentType === "PASSPORT" ? lookupHash : null,
+      passportSetAt: idDocumentType === "PASSPORT" ? now : null,
+      passportSetBy: idDocumentType === "PASSPORT" ? audit.actorUserId : null,
     }).returning({ id: patients.id });
     const patientId = Number(getInsertId(result));
     const hn = `HN${String(patientId).padStart(8, "0")}`;
@@ -401,11 +417,16 @@ export async function createPatient(input: PatientRegistrationInput, audit: Audi
       entityId: String(patientId),
       outcome: "ALLOWED",
       requestId: audit.requestId,
-      metadata: safeAuditMetadata({ source: "front_desk", nationalIdRecorded: Boolean(normalizedNationalId), consentAccepted: Boolean(consentAccepted) }),
+      metadata: safeAuditMetadata({ source: "front_desk", identityDocumentType: idDocumentType, identityDocumentRecorded: true, consentAccepted: Boolean(consentAccepted) }),
     });
     const created = await tx.select(patientClientSelection).from(patients).where(eq(patients.id, patientId)).limit(1);
     if (!created[0]) throw new Error("PATIENT_CREATE_FAILED");
-    return { ...created[0], nationalIdMasked: normalizedNationalId ? maskThaiNationalId(normalizedNationalId) : null };
+    return {
+      ...created[0],
+      identityDocumentMasked: idDocumentType === "THAI_NATIONAL_ID"
+        ? maskThaiNationalId(normalizedIdDocumentNumber)
+        : maskPassportNumber(normalizedIdDocumentNumber),
+    };
   });
 }
 
@@ -425,6 +446,7 @@ const patientClientSelection = {
   phone: patients.phone,
   address: patients.address,
   allergySummary: patients.allergySummary,
+  idDocumentType: patients.idDocumentType,
   createdBy: patients.createdBy,
   createdAt: patients.createdAt,
   updatedAt: patients.updatedAt,
@@ -444,15 +466,17 @@ export async function recordPatientNationalId(input: { patientId: number; nation
   if (!isValidThaiNationalId(normalizedNationalId)) throw new Error("INVALID_NATIONAL_ID");
   const db = await requiredDb();
   return db.transaction(async tx => {
-    const patient = await tx.select({ id: patients.id, nationalIdCiphertext: patients.nationalIdCiphertext }).from(patients).where(eq(patients.id, input.patientId)).limit(1);
+    const patient = await tx.select({ id: patients.id, idDocumentType: patients.idDocumentType, nationalIdCiphertext: patients.nationalIdCiphertext }).from(patients).where(eq(patients.id, input.patientId)).limit(1);
     if (!patient[0]) throw new Error("PATIENT_NOT_FOUND");
-    if (patient[0].nationalIdCiphertext) throw new Error("NATIONAL_ID_WRITE_ONCE");
-    await tx.update(patients).set({
+    if (patient[0].idDocumentType || patient[0].nationalIdCiphertext) throw new Error("NATIONAL_ID_WRITE_ONCE");
+    const updateResult = await tx.update(patients).set({
+      idDocumentType: "THAI_NATIONAL_ID",
       nationalIdCiphertext: encryptNationalId(normalizedNationalId),
       nationalIdLookupHash: nationalIdLookupHash(normalizedNationalId),
       nationalIdSetAt: new Date(),
       nationalIdSetBy: audit.actorUserId,
-    }).where(and(eq(patients.id, input.patientId), isNull(patients.nationalIdCiphertext)));
+    }).where(and(eq(patients.id, input.patientId), isNull(patients.idDocumentType), isNull(patients.nationalIdCiphertext)));
+    if (getAffectedRows(updateResult) !== 1) throw new Error("NATIONAL_ID_WRITE_ONCE");
     await tx.insert(auditEvents).values({
       action: "PATIENT_NATIONAL_ID_RECORDED",
       actorUserId: audit.actorUserId,
@@ -480,6 +504,7 @@ export async function searchPatients(query: string) {
       dateOfBirth: patients.dateOfBirth,
       gender: patients.gender,
       phone: patients.phone,
+      idDocumentType: patients.idDocumentType,
       createdAt: patients.createdAt,
     })
     .from(patients)
